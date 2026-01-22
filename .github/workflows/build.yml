@@ -47,6 +47,10 @@ jobs:
     - name: Package macOS App
       run: |
         ./package_app.sh
+        # Ad-hoc sign the application to avoid "damaged" error
+        codesign --force --deep --sign - build/HelloFLTK.app
+        # Remove quarantine attribute
+        xattr -cr build/HelloFLTK.app
         mkdir -p dist
         cp -r build/HelloFLTK.app dist/
         cd dist
