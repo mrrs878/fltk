@@ -12,7 +12,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -42,15 +42,15 @@ jobs:
         zip -r ../HelloFLTK-macOS.zip HelloFLTK.app
 
     - name: Upload macOS artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: HelloFLTK-macOS
-        path: dist/macos/HelloFLTK-macOS.zip
+        path: dist/HelloFLTK-macOS.zip
 
   build-ubuntu:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -73,15 +73,15 @@ jobs:
         tar -czvf ../HelloFLTK-ubuntu.tar.gz *
 
     - name: Upload Ubuntu artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: HelloFLTK-ubuntu
-        path: dist/ubuntu/HelloFLTK-ubuntu.tar.gz
+        path: dist/HelloFLTK-ubuntu.tar.gz
 
   build-windows:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
 
@@ -120,10 +120,10 @@ jobs:
         Compress-Archive -Path * -DestinationPath ../HelloFLTK-Windows.zip
 
     - name: Upload Windows artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: HelloFLTK-Windows
-        path: dist/windows/HelloFLTK-Windows.zip
+        path: dist/HelloFLTK-Windows.zip
 
   release:
     needs: [build-macos, build-ubuntu, build-windows]
@@ -131,7 +131,7 @@ jobs:
     if: github.event_name == 'release'
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
