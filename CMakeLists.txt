@@ -9,7 +9,9 @@ set(FLTK_BUILD_FORMS ON CACHE BOOL "Build FLTK Forms library")
 
 add_subdirectory(${FLTK_SOURCE_DIR} EXCLUDE_FROM_ALL)
 
-add_executable(hello_fltk
+# WIN32 flag makes it a GUI application on Windows (no console window)
+# On other platforms, this flag is ignored
+add_executable(hello_fltk WIN32
     src/main.cpp
 )
 
