@@ -20,12 +20,14 @@ jobs:
       run: brew install cmake
 
     - name: Cache FLTK build
+      id: cache-fltk-macos
       uses: actions/cache@v4
       with:
         path: fltk_src/build
         key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}-macos12
 
     - name: Build FLTK
+      if: steps.cache-fltk-macos.outputs.cache-hit != 'true'
       run: |
         cd fltk_src
         mkdir -p build && cd build
@@ -71,12 +73,14 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
 
     - name: Cache FLTK build
+      id: cache-fltk
       uses: actions/cache@v4
       with:
         path: fltk_src/build
         key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}
 
     - name: Build FLTK
+      if: steps.cache-fltk.outputs.cache-hit != 'true'
       run: |
         cd fltk_src
         if (-not (Test-Path build)) { mkdir build }
