@@ -50,48 +50,6 @@ jobs:
         name: HelloFLTK-macOS
         path: dist/HelloFLTK-macOS.zip
 
-  build-ubuntu:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libx11-dev libxft-dev libxinerama-dev libxcursor-dev libpng-dev libjpeg-dev cmake build-essential
-
-    - name: Cache FLTK build
-      uses: actions/cache@v4
-      with:
-        path: fltk_src/build
-        key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}
-
-    - name: Build FLTK
-      run: |
-        cd fltk_src
-        mkdir -p build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_EXAMPLES=OFF -DFLTK_BUILD_TEST=OFF
-        make -j$(nproc)
-
-    - name: Build application
-      run: |
-        mkdir -p build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        make -j$(nproc)
-
-    - name: Package Ubuntu binary
-      run: |
-        mkdir -p dist
-        cp build/hello_fltk dist/
-        cd dist
-        tar -czvf HelloFLTK-ubuntu.tar.gz hello_fltk
-
-    - name: Upload Ubuntu artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: HelloFLTK-ubuntu
-        path: dist/HelloFLTK-ubuntu.tar.gz
-
   build-windows:
     runs-on: windows-latest
     steps:
@@ -136,7 +94,7 @@ jobs:
         path: dist/HelloFLTK-Windows.zip
 
   release:
-    needs: [build-macos, build-ubuntu, build-windows]
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
     steps:
@@ -148,5 +106,4 @@ jobs:
       with:
         files: |
           HelloFLTK-macOS/HelloFLTK-macOS.zip
-          HelloFLTK-ubuntu/HelloFLTK-ubuntu.tar.gz
           HelloFLTK-Windows/HelloFLTK-Windows.zip
