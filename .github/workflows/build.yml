@@ -1,0 +1,142 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [created]
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        brew install cmake
+
+    - name: Build FLTK
+      run: |
+        cd fltk_src
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+
+    - name: Build application
+      run: |
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+
+    - name: Package macOS App
+      run: |
+        mkdir -p dist/macos
+        ./package_app.sh
+        mv build/HelloFLTK.app dist/macos/
+        cd dist/macos
+        zip -r ../HelloFLTK-macOS.zip HelloFLTK.app
+
+    - name: Upload macOS artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: HelloFLTK-macOS
+        path: dist/macos/HelloFLTK-macOS.zip
+
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfltk1.3-dev libxft-dev libxinerama-dev libxcursor-dev libpng-dev libjpeg-dev cmake build-essential
+
+    - name: Build application
+      run: |
+        mkdir build && cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+
+    - name: Package Ubuntu binary
+      run: |
+        mkdir -p dist/ubuntu
+        cp build/hello_fltk dist/ubuntu/
+        cd dist/ubuntu
+        tar -czvf ../HelloFLTK-ubuntu.tar.gz *
+
+    - name: Upload Ubuntu artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: HelloFLTK-ubuntu
+        path: dist/ubuntu/HelloFLTK-ubuntu.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        choco install cmake mingw
+        echo "C:\tools\mingw64\bin" >> $GITHUB_PATH
+
+    - name: Download FLTK for Windows
+      run: |
+        Invoke-WebRequest -Uri "https://www.fltk.org/pub/fltk/1.4.0/fltk-1.4.0-source.tar.bz2" -OutFile "fltk.tar.bz2"
+        tar -xf fltk.tar.bz2
+        mv fltk-* fltk_windows
+        cd fltk_windows
+        mkdir build && cd build
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_EXAMPLES=OFF -DFLTK_BUILD_TEST=OFF
+        cmake --build . --parallel
+
+    - name: Build application
+      run: |
+        mkdir build && cd build
+        cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DFLTK_ROOT=../fltk_windows
+        cmake --build . --parallel
+
+    - name: Package Windows binary
+      run: |
+        mkdir -p dist/windows
+        cp build/hello_fltk.exe dist/windows/
+        # Copy required DLLs
+        cp fltk_windows/build/libfltk.dll dist/windows/
+        cp fltk_windows/build/libfltk_images.dll dist/windows/
+        cp fltk_windows/build/libfltk_jpeg.dll dist/windows/
+        cp fltk_windows/build/libfltk_png.dll dist/windows/
+        cp fltk_windows/build/libfltk_z.dll dist/windows/
+        cd dist/windows
+        Compress-Archive -Path * -DestinationPath ../HelloFLTK-Windows.zip
+
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: HelloFLTK-Windows
+        path: dist/windows/HelloFLTK-Windows.zip
+
+  release:
+    needs: [build-macos, build-ubuntu, build-windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          HelloFLTK-macOS/HelloFLTK-macOS.zip
+          HelloFLTK-ubuntu/HelloFLTK-ubuntu.tar.gz
+          HelloFLTK-Windows/HelloFLTK-Windows.zip

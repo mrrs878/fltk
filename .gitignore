@@ -1,0 +1,32 @@
+# Build directories
+build/
+cmake-build-*/
+dist/
+tmp/
+
+# Executables
+*.exe
+*.out
+hello_fltk
+hello_fltk.exe
+
+# IDE specific
+.vs/
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+._*
+
+# Artifacts
+*.zip
+*.tar.gz
+
+# Temporary files
+*.log
+*.tmp
+*.temp
