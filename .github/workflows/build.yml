@@ -67,31 +67,31 @@ jobs:
     - name: Build FLTK
       run: |
         cd fltk_src
-        mkdir -Force build
+        if (-not (Test-Path build)) { mkdir build }
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_EXAMPLES=OFF -DFLTK_BUILD_TEST=OFF
         cmake --build . --config Release --parallel
 
     - name: Build application
       run: |
-        mkdir -Force build
+        if (-not (Test-Path build)) { mkdir build }
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         cmake --build . --config Release --parallel
 
     - name: Package Windows binary
       run: |
-        mkdir -Force dist
-        cp build/Release/hello_fltk.exe dist/ -ErrorAction SilentlyContinue
-        if (-not $?) { cp build/hello_fltk.exe dist/ }
-        cd dist
-        Compress-Archive -Path * -DestinationPath ../HelloFLTK-Windows.zip
+        if (Test-Path build/Release/hello_fltk.exe) {
+          Compress-Archive -Path build/Release/hello_fltk.exe -DestinationPath HelloFLTK-Windows.zip
+        } else {
+          Compress-Archive -Path build/hello_fltk.exe -DestinationPath HelloFLTK-Windows.zip
+        }
 
     - name: Upload Windows artifacts
       uses: actions/upload-artifact@v4
       with:
         name: HelloFLTK-Windows
-        path: dist/HelloFLTK-Windows.zip
+        path: HelloFLTK-Windows.zip
 
   release:
     needs: [build-macos, build-windows]
