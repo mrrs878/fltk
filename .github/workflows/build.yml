@@ -11,6 +11,8 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     steps:
     - uses: actions/checkout@v4
 
@@ -21,19 +23,25 @@ jobs:
       uses: actions/cache@v4
       with:
         path: fltk_src/build
-        key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}
+        key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}-macos12
 
     - name: Build FLTK
       run: |
         cd fltk_src
         mkdir -p build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_EXAMPLES=OFF -DFLTK_BUILD_TEST=OFF
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+          -DFLTK_BUILD_EXAMPLES=OFF \
+          -DFLTK_BUILD_TEST=OFF
         make -j$(sysctl -n hw.ncpu)
 
     - name: Build application
       run: |
         mkdir -p build && cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
         make -j$(sysctl -n hw.ncpu)
 
     - name: Package macOS App
