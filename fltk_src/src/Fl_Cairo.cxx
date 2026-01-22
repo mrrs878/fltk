@@ -1,0 +1,337 @@
+//
+// Special Cairo support for the Fast Light Tool Kit (FLTK).
+//
+// Copyright 1998-2025 by Bill Spitzak and others.
+//
+// This library is free software. Distribution and use rights are outlined in
+// the file "COPYING" which should have been included with this file.  If this
+// file is missing or damaged, see the license at:
+//
+//     https://www.fltk.org/COPYING.php
+//
+// Please see the following page on how to report bugs and issues:
+//
+//     https://www.fltk.org/bugs.php
+//
+
+// This file implements the FLTK Cairo Window support (since 1.3.x):
+//
+// - cmake -D FLTK_OPTION_CAIRO_WINDOW  or
+// - cmake -D FLTK_OPTION_CAIRO_EXT
+//
+// Preprocessor macro FLTK_HAVE_CAIRO is defined for both options.
+// Preprocessor macro FLTK_HAVE_CAIRO_EXT is defined only for "CAIRO_EXT".
+// Both macros are defined in 'FL/fl_config.h'.
+
+#include "Fl_Private.H" // includes <FL/fl_config.h>
+
+#ifdef FLTK_HAVE_CAIRO
+
+// Define USE_MAC_OS for convenience (below). We use macOS specific features
+// if USE_MAC_OS is defined, otherwise we're using X11 (XQuartz) on macOS
+
+#if defined __APPLE__ && !defined(FLTK_USE_X11)
+#define USE_MAC_OS
+#include <ApplicationServices/ApplicationServices.h>
+#endif
+
+#include <FL/platform.H>
+#include <FL/Fl_Window.H>
+
+// Cairo is currently supported for the following platforms:
+// Windows, macOS (Apple Quartz), X11, Wayland
+
+#if defined(_WIN32)               // Windows
+#  include <cairo-win32.h>
+#elif defined(FLTK_USE_WAYLAND)   // Wayland or hybrid
+#  include "../src/drivers/Wayland/Fl_Wayland_Graphics_Driver.H"
+#  include "../src/drivers/Wayland/Fl_Wayland_Window_Driver.H"
+#  if defined(FLTK_USE_X11)
+#    include <cairo-xlib.h>
+#  else
+     static void *fl_gc = NULL;
+#  endif
+#elif defined(FLTK_USE_X11)       // X11
+#  include <cairo-xlib.h>
+#elif defined(__APPLE__)          // macOS
+#  include <cairo-quartz.h>
+#else
+#  error Cairo is not supported on this platform.
+#endif
+
+// static initialization
+
+Fl_Cairo_State Fl::Private::cairo_state_; ///< current Cairo context information
+
+/** When FLTK_HAVE_CAIRO is defined and cairo_autolink_context() is true,
+  any current window dc is linked to a current Cairo context.
+  This is not the default, because it may not be necessary
+  to add Cairo support to all fltk supported windows.
+  When you wish to associate a Cairo context in this mode,
+  you need to call explicitly in your draw() overridden method,
+  Fl::cairo_make_current(Fl_Window*). This will create a Cairo context
+  only for this Window.
+  Still in custom Cairo application it is possible to handle
+  completely this process automatically by setting \p alink to true.
+  In this last case, you don't need anymore to call Fl::cairo_make_current().
+  You can use Fl::cairo_cc() to get the current Cairo context anytime.
+
+  \note Only available if built with CMake option FLTK_OPTION_CAIRO_WINDOW=ON.
+*/
+void Fl::cairo_autolink_context(bool alink) {
+  Private::cairo_state_.autolink(alink);
+}
+
+/**
+  Gets the current autolink mode for Cairo support.
+  \retval false if no Cairo context autolink is made for each window.
+  \retval true if any fltk window is attached a Cairo context when it
+  is current. \see void cairo_autolink_context(bool alink)
+
+  \note Only available if built with CMake option FLTK_OPTION_CAIRO_EXT=ON.
+  */
+bool Fl::cairo_autolink_context() {
+  return Private::cairo_state_.autolink();
+}
+
+/** Gets the current Cairo context linked with a fltk window. */
+cairo_t *Fl::cairo_cc() {
+  return Private::cairo_state_.cc();
+}
+
+/** Sets the current Cairo context to \p c.
+  Set \p own to true if you want fltk to handle this cc deletion.
+
+  \note Only available if built with CMake option FLTK_OPTION_CAIRO_WINDOW=ON.
+*/
+void Fl::cairo_cc(cairo_t *c, bool own /* = false */) {
+  Private::cairo_state_.cc(c, own);
+}
+
+
+// Fl_Cairo_State
+
+void Fl_Cairo_State::autolink(bool b) {
+#ifdef FLTK_HAVE_CAIROEXT
+  autolink_ = b;
+#else
+  Fl::fatal("In Fl::autolink(bool): Cairo autolink() feature is only "
+            "available with CMake FLTK_OPTION_CAIRO_EXT.\n"
+            "Quitting now.");
+#endif
+}
+
+/**
+  Provides a Cairo context for window \a wi.
+
+  This is needed in a draw() override if Fl::cairo_autolink_context()
+  returns false, which is the default.
+  The cairo_context() does not need to be freed as it is freed every time
+  a new Cairo context is created. When the program terminates,
+  a call to Fl::cairo_make_current(0) will destroy any residual context.
+
+  \note A new Cairo context is not always re-created when this method
+    is used. In particular, if the current graphical context and the current
+    window didn't change between two calls, the previous gc is internally kept,
+    thus optimizing the drawing performances.
+    Also, after this call, Fl::cairo_cc() is adequately updated with this
+    Cairo context.
+
+  \note Only available when CMake option '-D FLTK_OPTION_CAIRO_WINDOW' is set.
+
+  \return The valid cairo_t *cairo context associated to this window.
+  \retval NULL if \a wi is NULL or maybe with GL windows under Wayland
+*/
+cairo_t *Fl::cairo_make_current(Fl_Window *wi) {
+  if (!wi)
+    return NULL;
+  cairo_t *cairo_ctxt;
+
+#if defined(FLTK_USE_WAYLAND)
+  if (fl_wl_display()) { // true means using wayland backend
+    struct wld_window *xid = fl_wl_xid(wi);
+    if (!xid || !xid->buffer)
+      return NULL; // this may happen with GL windows or if window is not shown
+    cairo_ctxt = xid->buffer->draw_buffer.cairo_;
+    Fl::Private::cairo_state_.cc(cairo_ctxt, false);
+    return cairo_ctxt;
+  }
+#endif
+
+  if (fl_gc == 0) {  // means remove current cc
+    Fl::cairo_cc(0); // destroy any previous cc
+    Fl::Private::cairo_state_.window(0);
+    return 0;
+  }
+
+  // don't re-create a context if it's the same gc/window combination
+  if (fl_gc == Fl::Private::cairo_state_.gc() && fl_xid(wi) == (Window)Fl::Private::cairo_state_.window())
+    return Fl::cairo_cc();
+
+  // Scale the Cairo context appropriately. This is platform dependent
+
+#if !defined(USE_MAC_OS)
+  float scale = Fl::screen_scale(wi->screen_num()); // get the screen scaling factor
+#endif
+
+#if defined(FLTK_USE_X11)
+  cairo_ctxt = Fl::Private::cairo_make_current(0, wi->w() * scale, wi->h() * scale);
+#else
+  // on macOS, scaling is done before by Fl_Window::make_current(), on Windows, the size is not used
+  cairo_ctxt = Fl::Private::cairo_make_current(fl_gc, wi->w(), wi->h());
+#endif
+
+  Fl::Private::cairo_state_.window((void *)fl_xid(wi));
+
+#if !defined(USE_MAC_OS)
+  cairo_scale(cairo_ctxt, scale, scale);
+#endif
+  return cairo_ctxt;
+}
+
+/*
+  Creates transparently a cairo_surface_t object.
+  gc is an HDC context in Windows, a CGContext* in Quartz, and
+  a display on X11 (not used on this platform)
+*/
+
+static cairo_surface_t *cairo_create_surface(void *gc, int W, int H) {
+#if defined(FLTK_USE_X11)
+  return cairo_xlib_surface_create(fl_display, fl_window, fl_visual->visual, W, H);
+#elif defined(FLTK_USE_WAYLAND)
+  return NULL;
+#elif defined(_WIN32)
+  return cairo_win32_surface_create((HDC)gc);
+#elif defined(__APPLE__)
+  return cairo_quartz_surface_create_for_cg_context((CGContextRef)gc, W, H);
+#else
+#error Cairo is not supported on this platform.
+#endif
+}
+
+
+#if 0 // this non-public function appears not to be used anywhere in FLTK
+/**
+  Creates a Cairo context from a \a gc only, gets its window size or
+  offscreen size if fl_window is null.
+
+  \note Only available if CMake FLTK_OPTION_CAIRO_WINDOW is enabled.
+*/
+cairo_t *Fl::Private::cairo_make_current(void *gc) {
+  int W = 0, H = 0;
+#if defined(FLTK_USE_X11) || defined(FLTK_USE_WAYLAND)
+  // FIXME X11 get W,H
+  // gc will be the window handle here
+  // # warning FIXME get W,H for cairo_make_current(void*)
+#elif defined(__APPLE__)
+  if (fl_window) {
+    W = Fl_Window::current()->w();
+    H = Fl_Window::current()->h();
+  } else {
+    W = CGBitmapContextGetWidth(fl_gc);
+    H = CGBitmapContextGetHeight(fl_gc);
+  }
+#elif defined(_WIN32)
+  // we don't need any W,H for Windows
+#else
+#error Cairo is not supported on this platform.
+#endif
+
+  if (!gc) {
+    Fl::cairo_cc(0);
+    cairo_state_.gc(0); // keep track for next time
+    return 0;
+  }
+  if (gc == Fl::Private::cairo_state_.gc() &&
+      fl_window == (Window)Fl::Private::cairo_state_.window() &&
+      cairo_state_.cc() != 0)
+    return Fl::cairo_cc();
+  cairo_state_.gc(fl_gc); // keep track for next time
+  cairo_surface_t *s = cairo_create_surface(gc, W, H);
+  cairo_t *c = cairo_create(s);
+  cairo_surface_destroy(s);
+  cairo_state_.cc(c);
+  return c;
+}
+#endif
+
+/**
+  Creates a Cairo context from a \p gc and the given size.
+
+  \note Only available if CMake FLTK_OPTION_CAIRO_WINDOW is enabled.
+*/
+cairo_t *Fl::Private::cairo_make_current(void *gc, int W, int H) {
+  if (gc == Fl::Private::cairo_state_.gc() &&
+      fl_window == (Window)Fl::Private::cairo_state_.window() &&
+      cairo_state_.cc() != 0) // no need to create a cc, just return that one
+    return cairo_state_.cc();
+
+  // we need to (re-)create a fresh cc ...
+  cairo_state_.gc(gc); // keep track for next time
+  cairo_surface_t *s = cairo_create_surface(gc, W, H);
+
+#if defined(USE_MAC_OS) && defined(FLTK_HAVE_CAIROEXT)
+  CGAffineTransform at = CGContextGetCTM((CGContextRef)gc);
+  CGContextSaveGState((CGContextRef)gc);
+  CGContextConcatCTM((CGContextRef)gc, CGAffineTransformInvert(at));
+#endif
+
+  cairo_t *c = cairo_create(s);
+
+#if defined(USE_MAC_OS) && defined(FLTK_HAVE_CAIROEXT)
+  CGContextRestoreGState((CGContextRef)gc);
+#endif
+
+  cairo_state_.cc(c); //  and purge any previously owned context
+  cairo_surface_destroy(s);
+  return c;
+}
+
+/** Flush Cairo drawings on Cairo context \p c.
+  This is \b required on Windows if you use the Cairo context provided
+  by the "Cairo autolink" option. Call this when all your drawings on
+  the Cairo context are finished. This is maybe not necessary on other
+  platforms than Windows but it does no harm if you call it always.
+
+  You don't need to use this if you use an Fl_Cairo_Window which does
+  this automatically after the draw callback returns.
+
+  Code example for "Cairo autolink" mode:
+
+  In the overridden draw() method of your subclass of Fl_Window or any
+  widget:
+  \code
+    cairo_t *cc = Fl::cairo_cc();   // get the "autolink" Cairo context
+    // ... your Cairo drawings are here ...
+    Fl::cairo_flush(cc);            // flush Cairo drawings to the device
+  \endcode
+
+  If you configure FLTK with CMake option
+  \c 'FLTK_OPTION_CAIRO_WINDOW' (i.e. without CMake option
+  \c 'FLTK_OPTION_CAIRO_EXT') or if you don't enable the \c 'autolink' Cairo
+  context you may do the equivalent to use Cairo drawings in an
+  overridden draw() method of derived classes by using
+  \code
+    // get the  Cairo context for the \c window
+    cairo_t *cc = Fl::cairo_make_current(window);
+    // ... your Cairo drawings are here ...
+    Fl::cairo_flush(cc); // flush Cairo drawings to the device
+  \endcode
+  \see Fl::cairo_autolink_context(bool)
+  \see Fl::cairo_make_current(Fl_Window*);
+*/
+FL_EXPORT extern void Fl::cairo_flush(cairo_t *c) {
+  // flush Cairo drawings: necessary at least for Windows
+  cairo_surface_t *s = cairo_get_target(c);
+  cairo_surface_flush(s);
+}
+
+// Silence compiler warning if none of the Cairo options has been selected
+
+#else
+
+FL_EXPORT int fltk_cairo_dummy() {
+  return 1;
+}
+
+#endif // FLTK_HAVE_CAIRO

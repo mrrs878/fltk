@@ -1,0 +1,294 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0500
+header_name {.h}
+code_name {.cxx}
+include_guard {}
+Function {} {open
+} {
+  Fl_Window {} {
+    label {Valuator classes, showing values for type()} open
+    xywh {454 295 620 640} type Double color 43 selection_color 43
+    code0 {\#include <stdio.h>} visible
+  } {
+    Fl_Group {} {
+      label Fl_Slider open
+      xywh {10 10 320 210} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Slider {} {
+        label 0
+        user_data {"Fl_Slider FL_VERT_SLIDER"}
+        callback callback
+        tooltip {Vertical Slider} xywh {30 70 20 140} selection_color 1 labelsize 8 align 1 v_label_margin 2
+      }
+      Fl_Slider {} {
+        label {FL_VERT_FILL_SLIDER
+    |
+    |
+    |}
+        user_data {"Fl_Slider FL_VERT_FILL_SLIDER"}
+        callback callback
+        xywh {70 70 20 140} type {Vert Fill} selection_color 1 labelsize 8 align 5
+      }
+      Fl_Slider {} {
+        label {FL_VERT_NICE_SLIDER
+    |
+    |}
+        user_data {"Fl_Slider FL_VERT_NICE_SLIDER"}
+        callback callback
+        xywh {105 70 20 140} type {Vert Knob} box FLAT_BOX color 10 selection_color 1 labelsize 8 align 5
+      }
+      Fl_Slider {} {
+        label {TICKS_RIGHT
+    |}
+        user_data {"Fl_Slider FL_VERT_NICE_SLIDER"}
+        callback callback
+        xywh {138 70 20 140} type {Vert Knob} box FLAT_BOX selection_color 1 labelsize 8 align 5
+        code0 {o->ticks(Fl_Slider::TICKS_RIGHT);}
+      }
+      Fl_Slider {} {
+        label FL_HORIZONTAL
+        user_data {"Fl_Slider FL_HORIZONTAL"}
+        callback callback
+        xywh {190 75 130 20} type Horizontal selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Slider {} {
+        label FL_HOR_FILL_SLIDER
+        user_data {"Fl_Slider FL_HOR_FILL_SLIDER"}
+        callback callback
+        xywh {190 110 130 20} type {Horz Fill} selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Slider {} {
+        label FL_HOR_NICE_SLIDER
+        user_data {"Fl_Slider FL_HOR_NICE_SLIDER"}
+        callback callback
+        xywh {190 145 130 20} type {Horz Knob} box FLAT_BOX color 10 selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Slider {} {
+        label {TICKS_ABOVE|TICKS_BELOW}
+        user_data {"Fl_Slider FL_HOR_NICE_SLIDER"}
+        callback callback
+        xywh {190 180 130 20} type {Horz Knob} box FLAT_BOX selection_color 1 labelsize 8 v_label_margin 2
+        code0 {o->ticks(Fl_Slider::TICKS_ABOVE|Fl_Slider::TICKS_BELOW);}
+      }
+    }
+    Fl_Group {} {
+      label Fl_Value_Slider open
+      xywh {10 230 320 210} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Value_Slider {} {
+        label 0
+        user_data {"FL_VERT_SLIDER"}
+        callback callback
+        tooltip {Value Slider} xywh {30 290 30 140} selection_color 1 labelsize 8 align 1 v_label_margin 2
+      }
+      Fl_Value_Slider {} {
+        label {FL_VERT_FILL_SLIDER
+    |
+    |
+    |}
+        user_data {"Fl_Value_Slider FL_VERT_FILL_SLIDER"}
+        callback callback selected
+        xywh {70 290 30 140} type {Vert Fill} selection_color 1 labelsize 8 align 5
+      }
+      Fl_Value_Slider {} {
+        label {FL_VERT_NICE_SLIDER
+    |
+    |}
+        user_data {"Fl_Value_Slider FL_VERT_NICE_SLIDER"}
+        callback callback
+        xywh {110 290 20 140} type {Vert Knob} box FLAT_BOX color 10 selection_color 1 labelsize 8 align 5
+      }
+      Fl_Value_Slider {} {
+        label {LOG_SCALE
+    |}
+        user_data {"Fl_Value_Slider FL_VERT_NICE_SLIDER"}
+        callback callback
+        xywh {142 290 20 140} type {Vert Knob} box FLAT_BOX selection_color 1 labelsize 8 align 5 minimum 100 step 1 value 1
+        code0 {o->scale(Fl_Slider::LOG_SCALE);}
+        code1 {o->ticks(Fl_Slider::TICKS_RIGHT);}
+      }
+      Fl_Value_Slider {} {
+        label FL_HOR_SLIDER
+        user_data {"Fl_Value_Slider FL_HOR_SLIDER"}
+        callback callback
+        xywh {190 295 130 20} type Horizontal selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Value_Slider {} {
+        label FL_HOR_FILL_SLIDER
+        user_data {"Fl_Value_Slider FL_HOR_FILL_SLIDER"}
+        callback callback
+        xywh {190 330 130 20} type {Horz Fill} selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Value_Slider {} {
+        label FL_HOR_NICE_SLIDER
+        user_data {"Fl_Value_Slider FL_HOR_NICE_SLIDER"}
+        callback callback
+        xywh {190 365 130 20} type {Horz Knob} box FLAT_BOX color 10 selection_color 1 labelsize 8 v_label_margin 2
+      }
+      Fl_Value_Slider {} {
+        label LOG_SCALE
+        user_data {"Fl_Value_Slider FL_HOR_NICE_SLIDER"}
+        callback callback
+        xywh {190 400 130 20} type {Horz Knob} box FLAT_BOX selection_color 1 labelsize 8 v_label_margin 2 minimum 1 maximum 100 step 1
+        code0 {o->ticks(Fl_Slider::TICKS_ABOVE|Fl_Slider::TICKS_BELOW);}
+        code1 {o->scale(Fl_Slider::LOG_SCALE);}
+      }
+    }
+    Fl_Group {} {
+      label Fl_Value_Input
+      xywh {10 450 155 50} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Value_Input {} {
+        label 0
+        user_data {"Fl_Value_Input"}
+        callback callback
+        tooltip {Value Input} xywh {30 470 125 25} labelsize 8 maximum 100 step 0.1
+      }
+    }
+    Fl_Group {} {
+      label Fl_Value_Output
+      user_data {"Fl_Value_Output"}
+      xywh {175 450 155 50} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Value_Output {} {
+        label 0
+        callback callback
+        tooltip {Value Output} xywh {190 470 125 25} labelsize 8 maximum 100 step 0.1
+      }
+    }
+    Fl_Group {} {
+      label {   Fl_Scrollbar} open
+      xywh {340 10 130 120} box ENGRAVED_BOX labelfont 1 align 21
+    } {
+      Fl_Scrollbar {} {
+        label FL_HORIZONTAL
+        user_data {"Fl_Scrollbar FL_HORIZONTAL"}
+        callback callback
+        tooltip {Horizontal Scrollbar} xywh {345 55 95 20} type Horizontal labelsize 8 v_label_margin 2 maximum 100 value 20
+      }
+      Fl_Scrollbar {} {
+        label {FL_VERTICAL (0) ->}
+        user_data {"Fl_Scrollbar FL_VERTICAL"}
+        callback callback
+        tooltip {Vertical Scrollbar} xywh {445 30 20 90} labelsize 8 align 13 maximum 100 value 20
+      }
+    }
+    Fl_Group {} {
+      label Fl_Adjuster
+      xywh {480 10 130 120} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Adjuster {} {
+        label {w()>h()}
+        user_data {"Fl_Adjuster w()>h()"}
+        callback callback
+        tooltip {Horizontal Adjuster} xywh {490 60 75 25} labelsize 8 v_label_margin 2
+      }
+      Fl_Adjuster {} {
+        label {w()<h()}
+        user_data {"Fl_Adjuster w()<h()"}
+        callback callback
+        tooltip {Vertical Adjuster} xywh {570 35 25 75} labelsize 8 v_label_margin 2
+      }
+    }
+    Fl_Group {} {
+      label Fl_Counter
+      xywh {340 140 130 120} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Counter {} {
+        label 0
+        user_data {"Fl_Counter"}
+        callback callback
+        tooltip {Standard Counter} xywh {350 175 110 25} labelsize 8 v_label_margin 2
+      }
+      Fl_Counter {} {
+        label FL_SIMPLE_COUNTER
+        user_data {"Fl_Counter FL_SIMPLE_COUNTER"}
+        callback callback
+        tooltip {Simple Counter} xywh {350 215 110 25} type Simple labelsize 8 v_label_margin 2
+      }
+    }
+    Fl_Group {} {
+      label Fl_Spinner
+      xywh {480 140 130 120} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Spinner {} {
+        label FL_INT_INPUT
+        user_data {"Fl_Spinner FL_INT_INPUT"}
+        callback callback_spinner
+        xywh {505 176 80 24} labelsize 8 align 2 v_label_margin 2 minimum -30 maximum 30 step 2 value 5
+      }
+      Fl_Spinner {} {
+        label FL_FLOAT_INPUT
+        user_data {"Fl_Spinner FL_FLOAT_INPUT"}
+        callback callback_spinner
+        xywh {505 216 80 24} type Float labelsize 8 align 2 v_label_margin 2 minimum 0 maximum 1 step 0.01 value 0.05
+        code0 {o->wrap(0); // disable wrap mode}
+      }
+    }
+    Fl_Group {} {
+      label Fl_Dial
+      xywh {340 270 270 105} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Dial {} {
+        label 0
+        user_data {"Fl_Dial"}
+        callback callback
+        tooltip {Standard Dial} xywh {360 295 65 65} color 10 selection_color 1 labelsize 8 v_label_margin 2 value 0.5
+        code0 {o->angles(0,315);}
+      }
+      Fl_Dial {} {
+        label FL_LINE_DIAL
+        user_data {"Fl_Dial FL_LINE_DIAL"}
+        callback callback
+        tooltip {Line Dial} xywh {440 295 65 65} type Line color 10 selection_color 1 labelsize 8 v_label_margin 2 value 0.5
+      }
+      Fl_Dial {} {
+        label FL_FILL_DIAL
+        user_data {"Fl_Dial FL_FILL_DIAL"}
+        callback callback
+        tooltip {Fill Dial} xywh {520 295 65 65} type Fill color 10 selection_color 1 labelsize 8 v_label_margin 2 value 1
+        code0 {o->angles(0,360);}
+      }
+    }
+    Fl_Group {} {
+      label Fl_Roller
+      xywh {340 385 150 115} box ENGRAVED_BOX labelfont 1 align 17
+    } {
+      Fl_Roller {} {
+        label 0
+        user_data {"Fl_Roller FL_VERTICAL"}
+        callback callback
+        tooltip {Vertical Roller} xywh {355 390 20 95} labelsize 8 v_label_margin 2
+      }
+      Fl_Roller {} {
+        label FL_HORIZONTAL
+        user_data {"Fl_Roller FL_HORIZONTAL"}
+        callback callback
+        tooltip {Horizontal Roller} xywh {385 430 90 20} type Horizontal labelsize 8 v_label_margin 2
+      }
+    }
+    Fl_Box {} {
+      label {Some widgets have color(FL_GREEN) and color2(FL_RED) to show the areas these effect.}
+      xywh {500 385 110 115} box BORDER_FRAME color 0 selection_color 0 labelsize 11 align 128
+    }
+    Fl_Terminal tty {
+      xywh {10 513 600 117}
+      code0 {o->ansi(true);}
+    }
+  }
+}
+
+Function {callback(Fl_Widget* o, void*)} {open return_type void
+} {
+  code {const char *name = (const char*)(o->user_data() ? o->user_data() : "???");
+tty->printf("callback(): %s value() = \\033[1m%g\\033[0m\\n",
+            name, ((Fl_Valuator*)o)->value());} {}
+}
+
+Function {callback_spinner(Fl_Widget* o, void*)} {
+  comment {Spinner doesn't derive from Fl_Valuator..} open return_type void
+} {
+  code {const char *name = (const char*)(o->user_data() ? o->user_data() : "???");
+tty->printf("callback(): %s value() = \\033[1m%g\\033[0m\\n",
+            name, ((Fl_Spinner*)o)->value());} {}
+}
