@@ -112,30 +112,26 @@ if(APPLE)
     )
     
 elseif(WIN32)
-    add_custom_target(copy_resources ALL
+    # Copy resources after building
+    add_custom_command(TARGET quick_adb POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend $<TARGET_FILE_DIR:quick_adb>/frontend
         # Only copy Windows-specific adb tools
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/resources/adb
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/resources/adb/win $<TARGET_FILE_DIR:quick_adb>/resources/adb/win
-        DEPENDS ${FRONTEND_FILES}
         COMMENT "📦 Copying frontend + Windows adb tools"
         VERBATIM
     )
-    add_dependencies(quick_adb copy_resources)
     
 else()
-    # Linux
-    add_custom_target(copy_resources ALL
+    # Linux: Copy resources after building
+    add_custom_command(TARGET quick_adb POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend $<TARGET_FILE_DIR:quick_adb>/frontend
         # Linux can use mac tools or add linux-specific tools
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/resources/adb
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/resources/adb/mac $<TARGET_FILE_DIR:quick_adb>/resources/adb/linux
-        DEPENDS ${FRONTEND_FILES}
         COMMENT "📦 Copying frontend + Linux adb tools"
         VERBATIM
     )
-    
-    add_dependencies(quick_adb copy_resources)
 endif()
 
 add_custom_target(show_paths
