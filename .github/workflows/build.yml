@@ -33,11 +33,13 @@ jobs:
     - name: Package macOS binary
       run: |
         mkdir -p dist
-        # Ad-hoc sign the binary to avoid "damaged" error
-        codesign --force --sign - build/quick_adb
-        cp build/quick_adb dist/
+        # Ad-hoc sign the application to avoid "damaged" error
+        codesign --force --deep --sign - build/quick_adb.app
+        # Remove quarantine attribute
+        xattr -cr build/quick_adb.app
+        cp -r build/quick_adb.app dist/
         cd dist
-        zip -r QuickADB-macOS.zip quick_adb
+        zip -r QuickADB-macOS.zip quick_adb.app
 
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4

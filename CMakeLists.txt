@@ -29,9 +29,23 @@ if(WIN32)
 endif()
 
 # Create executable
-add_executable(quick_adb
-    src/main.cpp
-)
+# MACOSX_BUNDLE creates .app bundle on macOS to hide terminal
+if(APPLE)
+    add_executable(quick_adb MACOSX_BUNDLE
+        src/main.cpp
+    )
+    # Set macOS bundle properties
+    set_target_properties(quick_adb PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "QuickADB"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.mrrs878.quickadb"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    )
+else()
+    add_executable(quick_adb
+        src/main.cpp
+    )
+endif()
 
 if(WIN32)
     target_link_libraries(quick_adb 
