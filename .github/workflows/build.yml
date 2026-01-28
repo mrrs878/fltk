@@ -71,6 +71,13 @@ jobs:
         mkdir -p dist
         if (Test-Path build/Release/quick_adb.exe) {
           Copy-Item build/Release/quick_adb.exe dist/
+          # Copy frontend and resources from build output
+          if (Test-Path build/Release/frontend) {
+            Copy-Item -Recurse build/Release/frontend dist/
+          }
+          if (Test-Path build/Release/resources) {
+            Copy-Item -Recurse build/Release/resources dist/
+          }
           # Copy WebView2Loader.dll if exists
           if (Test-Path packages/Microsoft.Web.WebView2.*/build/native/x64/WebView2Loader.dll) {
             Copy-Item (Get-Item packages/Microsoft.Web.WebView2.*/build/native/x64/WebView2Loader.dll).FullName dist/
@@ -78,6 +85,12 @@ jobs:
           Compress-Archive -Path dist/* -DestinationPath QuickADB-Windows.zip
         } else {
           Copy-Item build/quick_adb.exe dist/
+          if (Test-Path build/frontend) {
+            Copy-Item -Recurse build/frontend dist/
+          }
+          if (Test-Path build/resources) {
+            Copy-Item -Recurse build/resources dist/
+          }
           Compress-Archive -Path dist/* -DestinationPath QuickADB-Windows.zip
         }
 

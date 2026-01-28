@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>@EXECUTABLE@</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.yourcompany.quick-adb</string>
+  <key>CFBundleName</key>
+  <string>Quick ADB</string>
+  <key>CFBundleVersion</key>
+  <string>@PROJECT_VERSION@</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <!-- 必需：允许加载本地文件 -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+</dict>
+</plist>
