@@ -1,8 +1,0 @@
-#
-# Files to be ignored by Git (do not commit)
-#
-
-# local documentation generation (?)
-
-documentation/html/
-documentation/html-dev/

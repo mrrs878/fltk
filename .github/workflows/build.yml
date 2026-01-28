@@ -22,25 +22,6 @@ jobs:
     - name: Install dependencies
       run: brew install cmake
 
-    - name: Cache FLTK build
-      id: cache-fltk-macos
-      uses: actions/cache@v4
-      with:
-        path: fltk_src/build
-        key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}-macos12
-
-    - name: Build FLTK
-      if: steps.cache-fltk-macos.outputs.cache-hit != 'true'
-      run: |
-        cd fltk_src
-        mkdir -p build && cd build
-        cmake .. \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
-          -DFLTK_BUILD_EXAMPLES=OFF \
-          -DFLTK_BUILD_TEST=OFF
-        make -j$(sysctl -n hw.ncpu)
-
     - name: Build application
       run: |
         mkdir -p build && cd build
@@ -49,23 +30,20 @@ jobs:
           -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
         make -j$(sysctl -n hw.ncpu)
 
-    - name: Package macOS App
+    - name: Package macOS binary
       run: |
-        ./package_app.sh
-        # Ad-hoc sign the application to avoid "damaged" error
-        codesign --force --deep --sign - build/HelloFLTK.app
-        # Remove quarantine attribute
-        xattr -cr build/HelloFLTK.app
         mkdir -p dist
-        cp -r build/HelloFLTK.app dist/
+        # Ad-hoc sign the binary to avoid "damaged" error
+        codesign --force --sign - build/quick_adb
+        cp build/quick_adb dist/
         cd dist
-        zip -r HelloFLTK-macOS.zip HelloFLTK.app
+        zip -r QuickADB-macOS.zip quick_adb
 
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: HelloFLTK-macOS
-        path: dist/HelloFLTK-macOS.zip
+        name: QuickADB-macOS
+        path: dist/QuickADB-macOS.zip
 
   build-windows:
     runs-on: windows-latest
@@ -75,21 +53,9 @@ jobs:
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Cache FLTK build
-      id: cache-fltk
-      uses: actions/cache@v4
-      with:
-        path: fltk_src/build
-        key: ${{ runner.os }}-fltk-${{ hashFiles('fltk_src/CMakeLists.txt') }}
-
-    - name: Build FLTK
-      if: steps.cache-fltk.outputs.cache-hit != 'true'
+    - name: Install NuGet packages
       run: |
-        cd fltk_src
-        if (-not (Test-Path build)) { mkdir build }
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DFLTK_BUILD_EXAMPLES=OFF -DFLTK_BUILD_TEST=OFF
-        cmake --build . --config Release --parallel
+        nuget install Microsoft.Web.WebView2 -OutputDirectory packages
 
     - name: Build application
       run: |
@@ -100,17 +66,24 @@ jobs:
 
     - name: Package Windows binary
       run: |
-        if (Test-Path build/Release/hello_fltk.exe) {
-          Compress-Archive -Path build/Release/hello_fltk.exe -DestinationPath HelloFLTK-Windows.zip
+        mkdir -p dist
+        if (Test-Path build/Release/quick_adb.exe) {
+          Copy-Item build/Release/quick_adb.exe dist/
+          # Copy WebView2Loader.dll if exists
+          if (Test-Path packages/Microsoft.Web.WebView2.*/build/native/x64/WebView2Loader.dll) {
+            Copy-Item (Get-Item packages/Microsoft.Web.WebView2.*/build/native/x64/WebView2Loader.dll).FullName dist/
+          }
+          Compress-Archive -Path dist/* -DestinationPath QuickADB-Windows.zip
         } else {
-          Compress-Archive -Path build/hello_fltk.exe -DestinationPath HelloFLTK-Windows.zip
+          Copy-Item build/quick_adb.exe dist/
+          Compress-Archive -Path dist/* -DestinationPath QuickADB-Windows.zip
         }
 
     - name: Upload Windows artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: HelloFLTK-Windows
-        path: HelloFLTK-Windows.zip
+        name: QuickADB-Windows
+        path: QuickADB-Windows.zip
 
   release:
     needs: [build-macos, build-windows]
@@ -124,5 +97,5 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          HelloFLTK-macOS/HelloFLTK-macOS.zip
-          HelloFLTK-Windows/HelloFLTK-Windows.zip
+          QuickADB-macOS/QuickADB-macOS.zip
+          QuickADB-Windows/QuickADB-Windows.zip
