@@ -28,9 +28,8 @@ if(WIN32)
     endif()
 endif()
 
-# WIN32 flag makes it a GUI application on Windows (no console window)
-# On other platforms, this flag is ignored
-add_executable(quick_adb WIN32
+# Create executable
+add_executable(quick_adb
     src/main.cpp
 )
 

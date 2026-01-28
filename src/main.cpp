@@ -2,11 +2,15 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-01-27 20:07:39
+ * @LastEditTime: 2026-01-28 10:22:24
  */
 
 #include "webview-core/webview/webview.h"
 #include <iostream>
+
+#ifdef _WIN32
+#pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+#endif
 
 int main() {
     // Create a webview window
