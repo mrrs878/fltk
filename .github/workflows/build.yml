@@ -19,6 +19,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm install
+        npm run build
+
     - name: Install dependencies
       run: brew install cmake
 
@@ -51,6 +62,17 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm install
+        npm run build
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1

@@ -100,36 +100,36 @@ if(APPLE)
     add_custom_command(TARGET quick_adb POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources"
         COMMAND ${CMAKE_COMMAND} -E create_symlink 
-            "${PROJECT_SOURCE_DIR}/frontend" 
+            "${PROJECT_SOURCE_DIR}/frontend/dist" 
             "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/frontend"
         # Only copy macOS-specific adb tools
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb"
         COMMAND ${CMAKE_COMMAND} -E copy_directory 
             "${PROJECT_SOURCE_DIR}/resources/adb/mac" 
             "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb/mac"
-        COMMENT "🔗 Creating symlinks to frontend + copying macOS adb tools"
+        COMMENT "🔗 Creating symlinks to frontend/dist + copying macOS adb tools"
         VERBATIM
     )
     
 elseif(WIN32)
     # Copy resources after building
     add_custom_command(TARGET quick_adb POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend $<TARGET_FILE_DIR:quick_adb>/frontend
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend/dist $<TARGET_FILE_DIR:quick_adb>/frontend
         # Only copy Windows-specific adb tools
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/resources/adb
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/resources/adb/win $<TARGET_FILE_DIR:quick_adb>/resources/adb/win
-        COMMENT "📦 Copying frontend + Windows adb tools"
+        COMMENT "📦 Copying frontend/dist + Windows adb tools"
         VERBATIM
     )
     
 else()
     # Linux: Copy resources after building
     add_custom_command(TARGET quick_adb POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend $<TARGET_FILE_DIR:quick_adb>/frontend
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/frontend/dist $<TARGET_FILE_DIR:quick_adb>/frontend
         # Linux can use mac tools or add linux-specific tools
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/resources/adb
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/resources/adb/mac $<TARGET_FILE_DIR:quick_adb>/resources/adb/linux
-        COMMENT "📦 Copying frontend + Linux adb tools"
+        COMMENT "📦 Copying frontend/dist + Linux adb tools"
         VERBATIM
     )
 endif()
