@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-29 11:18:10
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-01-29 11:44:10
+ * @LastEditTime: 2026-01-30 14:22:46
  */
 
 const esbuild = require("esbuild");
@@ -23,6 +23,7 @@ esbuild
     .then(() => {
         console.log("📄 Copying index.html...");
         fs.copyFileSync("src/index.html", "dist/index.html");
+        fs.copyFileSync("src/index.css", "dist/index.css");
         console.log("✅ Build succeeded!");
     })
     .catch((err) => {

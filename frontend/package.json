@@ -1,6 +1,7 @@
 {
     "scripts": {
-        "build": "node build.js"
+        "build": "node build.js",
+        "dev": "node dev.js"
     },
     "dependencies": {
         "solid-js": "^1.9.11"
