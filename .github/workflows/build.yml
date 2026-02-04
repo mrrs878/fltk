@@ -46,11 +46,33 @@ jobs:
         mkdir -p dist
         # Ad-hoc sign the application to avoid "damaged" error
         codesign --force --deep --sign - build/quick_adb.app
-        # Remove quarantine attribute
+        # Remove quarantine attribute before packaging
         xattr -cr build/quick_adb.app
         cp -r build/quick_adb.app dist/
         cd dist
-        zip -r QuickADB-macOS.zip quick_adb.app
+        # Create tar.gz instead of zip to better preserve attributes
+        tar -czf QuickADB-macOS.tar.gz quick_adb.app
+        
+        # Also create a user instruction file
+        cat > INSTALL.txt << 'EOF'
+        QuickADB macOS Installation Guide
+        ==================================
+        
+        If you see "App is damaged" error, run this command in Terminal:
+        
+        xattr -cr /path/to/quick_adb.app
+        
+        Or simply:
+        1. Extract quick_adb.app
+        2. Right-click on quick_adb.app
+        3. Select "Open" (not double-click)
+        4. Click "Open" in the dialog
+        
+        The app will then open normally on subsequent launches.
+        EOF
+        
+        # Create final zip with instruction
+        zip -r QuickADB-macOS.zip quick_adb.app INSTALL.txt
 
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4
