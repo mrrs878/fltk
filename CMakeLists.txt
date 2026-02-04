@@ -34,6 +34,11 @@ set(SOURCES
     src/main.cpp
 )
 
+# 在 Release 模式下定义 NDEBUG
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_definitions(NDEBUG)
+endif()
+
 if(APPLE)
     add_executable(quick_adb MACOSX_BUNDLE ${SOURCES})
     

@@ -1324,7 +1324,12 @@ int main()
     std::atexit(cleanup_on_exit);
     
     // Create a webview window
-    webview::webview w(true, nullptr);
+    // Debug 模式启用开发者工具，Release 模式禁用右键菜单和开发者选项
+#ifdef NDEBUG
+    webview::webview w(false, nullptr);  // Release: 禁用调试
+#else
+    webview::webview w(true, nullptr);   // Debug: 启用调试
+#endif
 
     if (!w.window().ok())
     {
