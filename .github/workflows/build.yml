@@ -44,35 +44,49 @@ jobs:
     - name: Package macOS binary
       run: |
         mkdir -p dist
-        # Ad-hoc sign the application to avoid "damaged" error
+        # Ad-hoc sign the application
         codesign --force --deep --sign - build/quick_adb.app
-        # Remove quarantine attribute before packaging
-        xattr -cr build/quick_adb.app
+        
+        # Create installation script
+        cat > dist/install.command << 'EOF'
+        #!/bin/bash
+        cd "$(dirname "$0")"
+        echo "Removing quarantine attribute from quick_adb.app..."
+        xattr -cr quick_adb.app
+        echo "Done! You can now open quick_adb.app by double-clicking it."
+        echo "Press any key to close this window..."
+        read -n 1
+        EOF
+        chmod +x dist/install.command
+        
+        # Copy app to dist
         cp -r build/quick_adb.app dist/
-        cd dist
-        # Create tar.gz instead of zip to better preserve attributes
-        tar -czf QuickADB-macOS.tar.gz quick_adb.app
         
-        # Also create a user instruction file
-        cat > INSTALL.txt << 'EOF'
-        QuickADB macOS Installation Guide
-        ==================================
-        
-        If you see "App is damaged" error, run this command in Terminal:
-        
-        xattr -cr /path/to/quick_adb.app
-        
-        Or simply:
-        1. Extract quick_adb.app
-        2. Right-click on quick_adb.app
-        3. Select "Open" (not double-click)
-        4. Click "Open" in the dialog
-        
-        The app will then open normally on subsequent launches.
+        # Create README
+        cat > dist/README.txt << 'EOF'
+        QuickADB macOS 安装说明
+        ======================
+
+        如果遇到"应用已损坏"错误，请执行以下操作：
+
+        方法一（推荐 - 自动）：
+        1. 双击运行 install.command 脚本
+        2. 然后就可以正常打开 quick_adb.app
+
+        方法二（手动）：
+        1. 打开终端（Terminal）
+        2. 输入：xattr -cr 
+        3. 将 quick_adb.app 拖拽到终端窗口
+        4. 按回车执行
+
+        方法三（右键打开）：
+        1. 右键点击 quick_adb.app
+        2. 选择"打开"
+        3. 在弹出对话框中点击"打开"
         EOF
         
-        # Create final zip with instruction
-        zip -r QuickADB-macOS.zip quick_adb.app INSTALL.txt
+        cd dist
+        zip -r QuickADB-macOS.zip quick_adb.app install.command README.txt
 
     - name: Upload macOS artifacts
       uses: actions/upload-artifact@v4

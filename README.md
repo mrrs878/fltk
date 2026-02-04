@@ -24,21 +24,28 @@
 
 ### macOS
 
-下载 `QuickADB-macOS.zip` 后解压，如果提示"应用已损坏"，请按以下步骤操作：
+下载 `QuickADB-macOS.zip` 后解压，**必须先运行 `install.command` 脚本**，然后才能打开应用。
 
-**方法一（推荐）：右键打开**
-1. 右键点击 `quick_adb.app`
-2. 选择"打开"（不是双击）
-3. 在弹出对话框中点击"打开"
-4. 之后可以正常双击启动
+**推荐步骤：**
+1. 解压 `QuickADB-macOS.zip`
+2. **双击运行 `install.command`**（会自动移除隔离属性）
+3. 然后双击 `quick_adb.app` 启动应用
 
-**方法二：终端命令**
+**如果双击 `install.command` 不工作：**
+```bash
+# 在终端中执行
+cd /path/to/QuickADB文件夹
+chmod +x install.command
+./install.command
+```
+
+**手动方式（如果脚本失败）：**
 ```bash
 xattr -cr /path/to/quick_adb.app
 ```
 
-**原因说明：**
-由于应用未经过 Apple 公证，macOS Gatekeeper 会阻止运行。上述方法可以移除隔离属性或添加安全例外。
+**为什么需要这个步骤？**
+macOS 从互联网下载的应用会被添加"隔离属性"，阻止未公证的应用运行。运行 `install.command` 会移除这个限制。
 
 ### Windows
 
