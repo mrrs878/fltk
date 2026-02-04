@@ -2,337 +2,1606 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-01-30 10:58:15
+ * @LastEditTime: 2026-02-04 15:18:13
  */
 
 import { createStore } from "solid-js/store";
-import { createSignal, onMount } from "solid-js";
+import { createSignal, onMount, onCleanup, For, Show } from "solid-js";
 import { render } from "solid-js/web";
+import { AdbApi, type Device } from "./api";
+import { ConfigManager } from "./config";
 
-// 定义类型
-type Device = {
-  id: string;
-  name: string;
-  status: string;
-  model?: string;
-  version?: string;
-};
-
-type LogLevel = 'Verbose' | 'Debug' | 'Info' | 'Warn' | 'Error';
+type LogLevel = "Verbose" | "Debug" | "Info" | "Warn" | "Error";
 
 type LogEntry = {
-  timestamp: string;
-  level: LogLevel;
-  tag: string;
-  message: string;
-  pid?: string;
+    timestamp: string;
+    level: LogLevel;
+    tag: string;
+    message: string;
+    packageName?: string;
+    pid?: string;
 };
 
-type Tab = 'device-management' | 'logcat' | 'quick-actions';
+type Tab = "device-management" | "logcat" | "quick-actions" | "file-management" | "settings";
 
-// 主应用状态
+type ToastType = "success" | "error" | "info" | "warning";
+
+type Toast = {
+    id: number;
+    type: ToastType;
+    message: string;
+};
+
 const [state, setState] = createStore({
-  devices: [] as Device[],
-  selectedDevice: null as string | null,
-  logs: [] as LogEntry[],
-  logFilter: {
-    packageName: '',
-    keywords: '',
-    logLevel: 'Verbose' as LogLevel,
-  },
-  isLogging: false,
-  screenshots: [] as string[],
+    devices: [] as Device[],
+    selectedDevice: null as string | null,
+    logs: [] as LogEntry[],
+    logFilter: {
+        packageName: "",
+        keywords: "",
+        logLevel: "Verbose" as LogLevel,
+    },
+    isLogging: false,
+    isRecording: false,
+    recordingStartTime: null as number | null,
+    screenshots: [] as string[],
+    toasts: [] as Toast[],
+    currentCommand: "",
+    isLoading: false,
+    previewImage: null as string | null,
+    previewVideo: null as string | null,
 });
 
-const Layout = (props) => {
-  return (
+let toastIdCounter = 0;
+
+const showToast = (message: string, type: ToastType = "info") => {
+    const id = toastIdCounter++;
+    setState("toasts", [...state.toasts, { id, type, message }]);
+    
+    setTimeout(() => {
+        setState("toasts", state.toasts.filter((t) => t.id !== id));
+    }, 3000);
+};
+
+const showError = (message: string) => showToast(message, "error");
+const showSuccess = (message: string) => showToast(message, "success");
+const showInfo = (message: string) => showToast(message, "info");
+const showWarning = (message: string) => showToast(message, "warning");
+
+const Layout = (props: { activeTab: Tab; setActiveTab: (tab: Tab) => void; children: any }) => (
     <div class="app-container">
-      <TopBar />
-      <SideBar setActiveTab={props.setActiveTab} activeTab={props.activeTab} />
-      <main>
-        {props.children}
-      </main>
+        <SideBar
+            setActiveTab={props.setActiveTab}
+            activeTab={props.activeTab}
+        />
+        <main>{props.children}</main>
+        <ToastContainer />
+        <StatusBar />
     </div>
-  );
+);
+
+const ToastContainer = () => {
+    return (
+        <div class="toast-container">
+            <For each={state.toasts}>
+                {(toast) => (
+                    <div class={`toast toast-${toast.type}`}>
+                        {toast.message}
+                    </div>
+                )}
+            </For>
+        </div>
+    );
 };
 
-const TopBar = () => {
-  return (
-    <header>
-      <h2>Quick ADB</h2>
-    </header>
-  );
+const StatusBar = () => {
+    return (
+        <div class="status-bar">
+            <Show when={state.isLoading}>
+                <span class="status-loading">⏳</span>
+            </Show>
+            <Show when={state.currentCommand}>
+                <span class="status-command">
+                    执行中: {state.currentCommand}
+                </span>
+            </Show>
+            <Show when={!state.currentCommand && !state.isLoading}>
+                <span class="status-ready">就绪</span>
+            </Show>
+        </div>
+    );
 };
 
-const SideBar = (props) => {
-  return (
-    <div class="sidebar">
-      <button 
-        class={`nav-btn ${props.activeTab === 'device-management' ? 'active' : ''}`}
-        onClick={() => props.setActiveTab('device-management')}
-      >
-        设备管理
-      </button>
-      <button 
-        class={`nav-btn ${props.activeTab === 'logcat' ? 'active' : ''}`}
-        onClick={() => props.setActiveTab('logcat')}
-      >
-        日志查看
-      </button>
-      <button 
-        class={`nav-btn ${props.activeTab === 'quick-actions' ? 'active' : ''}`}
-        onClick={() => props.setActiveTab('quick-actions')}
-      >
-        便捷操作
-      </button>
-    </div>
-  );
+const SideBar = (props: { activeTab: Tab; setActiveTab: (tab: Tab) => void }) => {
+    return (
+        <div class="sidebar">
+            <button
+                class={`nav-btn ${props.activeTab === "device-management" ? "active" : ""}`}
+                onClick={() => props.setActiveTab("device-management")}
+            >
+                设备管理
+            </button>
+            <button
+                class={`nav-btn ${props.activeTab === "logcat" ? "active" : ""}`}
+                onClick={() => props.setActiveTab("logcat")}
+            >
+                日志查看
+            </button>
+            <button
+                class={`nav-btn ${props.activeTab === "quick-actions" ? "active" : ""}`}
+                onClick={() => props.setActiveTab("quick-actions")}
+            >
+                便捷操作
+            </button>
+            <button
+                class={`nav-btn ${props.activeTab === "file-management" ? "active" : ""}`}
+                onClick={() => props.setActiveTab("file-management")}
+            >
+                文件管理
+            </button>
+            <button
+                class={`nav-btn ${props.activeTab === "settings" ? "active" : ""}`}
+                onClick={() => props.setActiveTab("settings")}
+            >
+                设置
+            </button>
+        </div>
+    );
 };
 
 const DeviceManagement = () => {
-  const refreshDevices = () => {
-    // 模拟获取设备列表
-    setState('devices', [
-      { id: 'emulator-5554', name: 'Android模拟器', status: '在线', model: 'AOSP', version: '11.0' },
-      { id: 'R32D1234567', name: 'Pixel 5', status: '在线', model: 'Pixel 5', version: '12.1' },
-      { id: 'G021Z9J00345678', name: 'Galaxy S21', status: '离线', model: 'SM-G991B', version: '13.0' }
-    ]);
-  };
+    let refreshTimer: number | undefined;
+    let previousDeviceCount = 0;
+    let isActive = true;
+    let isRefreshing = false; // 防止并发刷新
+    const [connectIP, setConnectIP] = createSignal("");
+    const [connectPort, setConnectPort] = createSignal("5555");
+    const [showConnectDialog, setShowConnectDialog] = createSignal(false);
 
-  const selectDevice = (deviceId: string) => {
-    setState('selectedDevice', deviceId);
-  };
+    const refreshDevices = async (showStatus = false) => {
+        if (!isActive || isRefreshing) return;
+        
+        isRefreshing = true;
+        if (showStatus) {
+            setState("isLoading", true);
+            setState("currentCommand", "adb devices");
+        }
+        
+        try {
+            const result = await AdbApi.getDevices();
+            
+            if (!isActive) {
+                isRefreshing = false;
+                return; // 检查组件是否还在活动
+            }
+            
+            if (result.success && result.data) {
+                const devices = result.data.devices.map((dev) => ({
+                    id: dev.id,
+                    name: dev.product || dev.model || dev.id,
+                    status: dev.status === "device" ? "在线" : "离线",
+                    model: dev.model,
+                    product: dev.product,
+                }));
+                
+                setState("devices", devices);
+                
+                // 如果当前选中的设备不在列表中，清除选择
+                if (state.selectedDevice && !devices.find(d => d.id === state.selectedDevice)) {
+                    setState("selectedDevice", null);
+                    ConfigManager.set('selectedDevice', null);
+                }
+                
+                // 只在手动刷新时显示提示
+                if (showStatus) {
+                    if (devices.length > 0) {
+                        showSuccess(`找到 ${devices.length} 个设备`);
+                    } else {
+                        showInfo('未找到设备');
+                    }
+                }
+                
+                previousDeviceCount = devices.length;
+            } else {
+                showError(result.error || "获取设备列表失败");
+            }
+        } catch (error) {
+            showError("获取设备列表失败: " + String(error));
+        } finally {
+            isRefreshing = false;
+            if (isActive && showStatus) {
+                setState("isLoading", false);
+                setState("currentCommand", "");
+            }
+        }
+    };
 
-  onMount(refreshDevices);
+    const selectDevice = (deviceId: string) => {
+        setState("selectedDevice", deviceId);
+        ConfigManager.set('selectedDevice', deviceId);
+        showSuccess("已选择设备: " + deviceId);
+    };
 
-  return (
-    <div class="device-management">
-      <div class="section-header">
-        <h3>设备管理</h3>
-        <button onClick={refreshDevices} class="btn-primary">刷新设备</button>
-      </div>
-      
-      <div class="device-list">
-        {state.devices.map(device => (
-          <div 
-            class={`device-item ${state.selectedDevice === device.id ? 'selected' : ''}`} 
-            onClick={() => selectDevice(device.id)}
-          >
-            <div class="device-info">
-              <h4>{device.name}</h4>
-              <p>ID: {device.id}</p>
-              <p>型号: {device.model || '未知'} | 版本: {device.version || '未知'}</p>
-              <span class={`status ${device.status === '在线' ? 'online' : 'offline'}`}>
-                {device.status}
-              </span>
+    const openConnectDialog = () => {
+        setShowConnectDialog(true);
+    };
+
+    const closeConnectDialog = () => {
+        setShowConnectDialog(false);
+        setConnectIP("");
+        setConnectPort("5555");
+    };
+
+    const connectWirelessDevice = async () => {
+        const ip = connectIP().trim();
+        const port = connectPort().trim();
+        
+        if (!ip) {
+            showError("请输入IP地址");
+            return;
+        }
+        
+        const ipPattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+        if (!ipPattern.test(ip)) {
+            showError("IP地址格式错误");
+            return;
+        }
+        
+        const portNum = parseInt(port);
+        if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
+            showError("端口号必须在 1-65535 之间");
+            return;
+        }
+        
+        const address = `${ip}:${port}`;
+        setState("isLoading", true);
+        setState("currentCommand", `adb connect ${address}`);
+        
+        try {
+            const result = await AdbApi.connectDevice(address);
+            if (result.success) {
+                showSuccess(`连接成功: ${address}`);
+                closeConnectDialog();
+                setTimeout(() => refreshDevices(false), 500);
+            } else {
+                showError(result.error || "连接失败");
+            }
+        } catch (error) {
+            showError("连接失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    };
+
+    const disconnectDevice = async () => { 
+        if (!state.selectedDevice) return;
+        try {
+            setState("isLoading", true);
+            setState("currentCommand", `adb connect ${state.selectedDevice}`);
+            const result = await AdbApi.disconnectDevice(state.selectedDevice);
+            if (result.success) {
+                showSuccess("已断开连接");
+                setState("selectedDevice", null);
+                await refreshDevices(false);
+            } else {
+                showError(result.error || "断开连接失败");
+            }
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    };
+
+    const startAutoRefresh = () => {
+        stopAutoRefresh();
+        const interval = ConfigManager.get('refreshInterval');
+        console.log('[DeviceManagement] Starting auto-refresh, interval:', interval, 'ms');
+        
+        const scheduleNext = () => {
+            refreshTimer = window.setTimeout(async () => {
+                if (isActive) {
+                    console.log('[DeviceManagement] Auto-refresh tick');
+                    await refreshDevices();
+                    scheduleNext();
+                } else {
+                    console.warn('[DeviceManagement] Timer fired but component not active');
+                }
+            }, interval);
+            console.log('[DeviceManagement] Timer scheduled with ID:', refreshTimer);
+        };
+        
+        scheduleNext();
+    };
+
+    const stopAutoRefresh = () => {
+        if (refreshTimer) {
+            console.log('[DeviceManagement] Stopping auto-refresh, timer ID:', refreshTimer);
+            clearTimeout(refreshTimer);
+            refreshTimer = undefined;
+        }
+    };
+
+    onMount(() => {
+        console.log('[DeviceManagement] Component mounted');
+        const savedDevice = ConfigManager.get('selectedDevice');
+        if (savedDevice) {
+            setState("selectedDevice", savedDevice);
+        }
+        
+        isActive = true;
+        refreshDevices(true);
+        startAutoRefresh();
+    });
+
+    onCleanup(() => {
+        console.log('[DeviceManagement] Component cleanup');
+        isActive = false;
+        stopAutoRefresh();
+    });
+
+    return (
+        <div class="device-management">
+            <div class="section-header">
+                <h3>设备管理</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button onClick={() => refreshDevices(true)} class="btn-primary">
+                        刷新设备
+                    </button>
+                    <button onClick={openConnectDialog} class="btn-secondary">
+                        无线连接
+                    </button>
+                </div>
             </div>
-          </div>
-        ))}
-      </div>
-      
-      {state.selectedDevice && (
-        <div class="device-actions">
-          <button class="btn-secondary">断开连接</button>
-          <button class="btn-secondary">重启设备</button>
-          <button class="btn-secondary">重启到Bootloader</button>
+
+            <Show when={showConnectDialog()}>
+                <div class="dialog-overlay" onClick={closeConnectDialog}>
+                    <div class="dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="dialog-header">
+                            <h3>无线连接设备</h3>
+                            <button class="dialog-close" onClick={closeConnectDialog}>×</button>
+                        </div>
+                        <div class="dialog-body">
+                            <div class="form-group">
+                                <label>IP 地址</label>
+                                <input
+                                    type="text"
+                                    placeholder="例如: 192.168.1.100"
+                                    value={connectIP()}
+                                    onInput={(e) => setConnectIP(e.currentTarget.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                            connectWirelessDevice();
+                                        }
+                                    }}
+                                    autofocus
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label>端口</label>
+                                <input
+                                    type="text"
+                                    placeholder="5555"
+                                    value={connectPort()}
+                                    onInput={(e) => setConnectPort(e.currentTarget.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                            connectWirelessDevice();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                        <div class="dialog-footer">
+                            <button onClick={closeConnectDialog} class="btn-secondary">
+                                取消
+                            </button>
+                            <button onClick={connectWirelessDevice} class="btn-primary">
+                                连接
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
+
+            <div class="device-list">
+                <For each={state.devices}>
+                    {(device) => (
+                        <div
+                            class={`device-item ${state.selectedDevice === device.id ? "selected" : ""}`}
+                            onClick={() => selectDevice(device.id)}
+                        >
+                            <div class="device-info">
+                                <h4>{device.name}</h4>
+                                <p>ID: {device.id}</p>
+                                <p>
+                                    型号: {device.model || "未知"} | 版本:{" "}
+                                    {device.version || "未知"}
+                                </p>
+                                <span
+                                    class={`status ${device.status === "在线" ? "online" : "offline"}`}
+                                >
+                                    {device.status}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </For>
+            </div>
+
+            <Show when={state.selectedDevice}>
+                <div class="device-actions">
+                    <button class="btn-secondary" onClick={disconnectDevice}>断开连接</button>
+                </div>
+            </Show>
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 const LogcatView = () => {
-  const updateLogFilter = (field: keyof typeof state.logFilter, value: any) => {
-    setState('logFilter', { [field]: value });
-  };
-
-  const toggleLogging = () => {
-    setState('isLogging', !state.isLogging);
-    // 这里应该调用后端API开始/停止日志记录
-  };
-
-  const clearLogs = () => {
-    setState('logs', []);
-  };
-
-  // 模拟添加日志条目
-  const addLogEntry = () => {
-    const levels: LogLevel[] = ['Verbose', 'Debug', 'Info', 'Warn', 'Error'];
-    const sampleLogs = [
-      { timestamp: new Date().toISOString(), level: levels[Math.floor(Math.random() * levels.length)], tag: 'ActivityManager', message: 'Start proc com.example.app for activity: pid=1234 uid=10123' },
-      { timestamp: new Date().toISOString(), level: 'Info', tag: 'PackageManager', message: 'Installing new package com.example.newapp' },
-      { timestamp: new Date().toISOString(), level: 'Error', tag: 'System', message: 'Critical error occurred in system service' }
-    ];
+    let isActive = true;
+    let pollTimer: number | undefined;
+    let lastLogIndex = 0; // 记录已读取到的位置
+    let logOutputRef: HTMLDivElement | undefined; // 日志容器引用
+    const [installedApps, setInstalledApps] = createSignal<Array<{packageName: string, displayName: string}>>([]);
+    const [showPackageSuggestions, setShowPackageSuggestions] = createSignal(false);
+    const [filterPids, setFilterPids] = createSignal<string[]>([]); // 当前过滤的PID列表
     
-    setState('logs', [...sampleLogs]);
-  };
-
-  onMount(addLogEntry);
-
-  return (
-    <div class="logcat-view">
-      <div class="section-header">
-        <h3>日志查看</h3>
-        <div class="log-controls">
-          <button onClick={toggleLogging} class={state.isLogging ? 'btn-warning' : 'btn-primary'}>
-            {state.isLogging ? '停止记录' : '开始记录'}
-          </button>
-          <button onClick={clearLogs} class="btn-secondary">清空日志</button>
-        </div>
-      </div>
-      
-      <div class="log-filters">
-        <div class="filter-group">
-          <label>包名过滤:</label>
-          <input 
-            type="text" 
-            value={state.logFilter.packageName} 
-            placeholder="com.example.app"
-            onInput={(e) => updateLogFilter('packageName', e.currentTarget.value)} 
-          />
-        </div>
+    // 滚动到底部
+    const scrollToBottom = () => {
+        if (logOutputRef) {
+            logOutputRef.scrollTop = logOutputRef.scrollHeight;
+        }
+    };
+    
+    const updateLogFilter = async (
+        field: keyof typeof state.logFilter,
+        value: any,
+    ) => {
+        setState("logFilter", { [field]: value });
         
-        <div class="filter-group">
-          <label>关键词过滤:</label>
-          <input 
-            type="text" 
-            value={state.logFilter.keywords} 
-            placeholder="搜索关键词"
-            onInput={(e) => updateLogFilter('keywords', e.currentTarget.value)} 
-          />
-        </div>
+        // 当输入包名时，只显示建议
+        if (field === "packageName") {
+            setShowPackageSuggestions(value.length > 0 && installedApps().length > 0);
+            // 清空之前的PID过滤
+            if (!value) {
+                setFilterPids([]);
+            }
+        }
+    };
+    
+    // 应用包名过滤（获取PID）
+    const applyPackageFilter = async () => {
+        const packageName = state.logFilter.packageName;
+        if (!packageName || !state.selectedDevice) {
+            setFilterPids([]);
+            return;
+        }
         
-        <div class="filter-group">
-          <label>日志级别:</label>
-          <select 
-            value={state.logFilter.logLevel} 
-            onChange={(e) => updateLogFilter('logLevel', e.currentTarget.value as LogLevel)}
-          >
-            <option value="Verbose">Verbose</option>
-            <option value="Debug">Debug</option>
-            <option value="Info">Info</option>
-            <option value="Warn">Warn</option>
-            <option value="Error">Error</option>
-          </select>
+        console.log('[Logcat] Applying filter for package:', packageName);
+        try {
+            const result = await AdbApi.getPackagePid(state.selectedDevice, packageName);
+            console.log('[Logcat] Get PID result:', result);
+            if (result.success && result.data && result.data.running) {
+                const pids = result.data.pid.split(/\s+/).filter(p => p);
+                setFilterPids(pids);
+                console.log('[Logcat] Filtering by PIDs:', pids);
+                showSuccess(`已应用过滤: ${packageName} (PID: ${pids.join(', ')})`);
+            } else {
+                setFilterPids([]);
+                showWarning(`应用未运行: ${packageName}`);
+            }
+        } catch (error) {
+            console.error('[Logcat] Get PID error:', error);
+            setFilterPids([]);
+            showError('获取应用PID失败');
+        }
+    };
+
+    const loadInstalledApps = async () => {
+        if (!state.selectedDevice) return;
+        
+        try {
+            const result = await AdbApi.getInstalledApps(state.selectedDevice);
+            if (result.success && result.data) {
+                setInstalledApps(result.data.packages);
+            }
+        } catch (error) {
+            console.error("Load apps error:", error);
+        }
+    };
+
+    const selectPackage = (packageName: string) => {
+        setState("logFilter", "packageName", packageName);
+        setShowPackageSuggestions(false);
+        // 自动应用过滤
+        setTimeout(() => applyPackageFilter(), 100);
+    };
+
+    const filteredPackageSuggestions = () => {
+        const filter = state.logFilter.packageName.toLowerCase();
+        if (!filter) return [];
+        return installedApps()
+            .filter(app => 
+                app.packageName.toLowerCase().includes(filter) || 
+                app.displayName.toLowerCase().includes(filter)
+            )
+            .slice(0, 10);
+    };
+
+    const toggleLogging = async () => {
+        if (state.isLogging) {
+            try {
+                await AdbApi.stopLogcat();
+                setState("isLogging", false);
+                if (pollTimer) {
+                    clearTimeout(pollTimer);
+                    pollTimer = undefined;
+                }
+                lastLogIndex = 0; // 重置索引
+                showSuccess("日志记录已停止");
+            } catch (error) {
+                showError("停止日志失败: " + String(error));
+            }
+        } else {
+            if (!state.selectedDevice) {
+                showWarning("请先选择设备");
+                return;
+            }
+            
+            try {
+                const result = await AdbApi.startLogcat(state.selectedDevice);
+                if (result.success) {
+                    setState("isLogging", true);
+                    setState("logs", []); // 清空旧日志
+                    lastLogIndex = 0; // 重置索引
+                    showSuccess("日志记录已开始");
+                    
+                    // 立即拉取一次获取初始日志
+                    pollLogsInitial();
+                } else {
+                    showError(result.error || "启动日志失败");
+                }
+            } catch (error) {
+                showError("启动日志失败: " + String(error));
+            }
+        }
+    };
+
+    // 首次拉取，获取所有现有日志
+    const pollLogsInitial = async () => {
+        try {
+            const result = await AdbApi.getLogcatLines(0);
+            console.log('[Logcat] Initial poll:', result);
+            
+            if (result.success && result.data) {
+                const allLines = result.data.lines;
+                
+                if (allLines.length > 0) {
+                    console.log('[Logcat] Initial lines:', allLines.length);
+                    const parsedLogs = allLines.map(line => parseLogLine(line)).filter(log => log !== null);
+                    setState("logs", parsedLogs);
+                    lastLogIndex = result.data.newIndex;
+                    console.log('[Logcat] Set lastIndex to:', lastLogIndex);
+                    
+                    // 初次加载后滚动到底部
+                    setTimeout(() => scrollToBottom(), 100);
+                }
+            }
+        } catch (error) {
+            console.error("Initial poll error:", error);
+        }
+        
+        // 开始常规轮询
+        if (state.isLogging && isActive) {
+            const interval = ConfigManager.get('logPollInterval') || 300;
+            pollTimer = window.setTimeout(() => pollLogs(), interval);
+        }
+    };
+
+    const pollLogs = async () => {
+        if (!state.isLogging || !isActive) return;
+        
+        try {
+            // 使用增量模式获取日志
+            const result = await AdbApi.getLogcatLines(lastLogIndex);
+            
+            console.log('[Logcat] Poll result:', {
+                success: result.success,
+                lastIndex: lastLogIndex,
+                newLinesCount: result.data?.lines?.length,
+                newIndex: result.data?.newIndex,
+                isRunning: result.data?.isRunning
+            });
+            
+            if (result.success && result.data) {
+                const newLines = result.data.lines;
+                
+                // 只有新日志时才更新
+                if (newLines.length > 0) {
+                    console.log('[Logcat] Processing new lines:', newLines.length);
+                    const parsedLogs = newLines.map(line => parseLogLine(line)).filter(log => log !== null);
+                    console.log('[Logcat] Parsed logs:', parsedLogs.length, 'Sample PIDs:', parsedLogs.slice(0, 3).map(l => l.pid));
+                    
+                    // 追加新日志而不是替换
+                    setState("logs", (logs) => {
+                        console.log('[Logcat] Before append - existing logs:', logs.length);
+                        const combined = [...logs, ...parsedLogs];
+                        console.log('[Logcat] After append - total logs:', combined.length);
+                        const maxLogs = 5000; // 增加到5000条，避免频繁丢失日志
+                        // 限制总数
+                        if (combined.length > maxLogs) {
+                            const trimmed = combined.slice(combined.length - maxLogs);
+                            console.log('[Logcat] Trimmed to:', trimmed.length);
+                            return trimmed;
+                        }
+                        return combined;
+                    });
+                    
+                    // 更新索引位置
+                    lastLogIndex = result.data.newIndex;
+                    
+                    // 自动滚动到底部
+                    setTimeout(() => scrollToBottom(), 0);
+                } else {
+                    console.log('[Logcat] No new lines, keeping lastIndex:', lastLogIndex);
+                }
+                
+                if (!result.data.isRunning && state.isLogging) {
+                    console.log('[Logcat] Logcat stopped running');
+                    setState("isLogging", false);
+                }
+            } else {
+                console.error('[Logcat] Poll failed:', result.error);
+            }
+        } catch (error) {
+            console.error("Poll logs error:", error);
+        }
+        
+        if (state.isLogging && isActive) {
+            const interval = ConfigManager.get('logPollInterval') || 300;
+            pollTimer = window.setTimeout(() => pollLogs(), interval);
+        }
+    };
+
+    const parseLogLine = (line: string): any | null => {
+        const timeRegex = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+([VDIWEF])\/(.+?)\(\s*(\d+)\):\s*(.+)$/;
+        const match = line.match(timeRegex);
+        
+        if (!match) {
+            // 打印未匹配的行，帮助调试
+            if (line.trim().length > 0 && !line.startsWith('-')) {
+                console.log('[Logcat] Failed to parse line:', line.substring(0, 100));
+            }
+            return null;
+        }
+        
+        const [, timestamp, levelChar, tag, pid, message] = match;
+        const levelMap: Record<string, LogLevel> = {
+            'V': 'Verbose', 'D': 'Debug', 'I': 'Info', 'W': 'Warn', 'E': 'Error', 'F': 'Error'
+        };
+        
+        return {
+            timestamp: timestamp, // 保持设备原始时间戳，格式: MM-DD HH:mm:ss.SSS
+            level: levelMap[levelChar] || 'Info',
+            tag: tag.trim(),
+            packageName: tag.trim(), // 添加包名字段，与tag相同
+            message: message,
+            pid: pid
+        };
+    };
+
+    const clearLogs = () => {
+        setState("logs", []);
+    };
+
+    const exportLogs = () => {
+        const logsText = state.logs.map(log => 
+            `${log.timestamp} ${log.level} ${log.tag}: ${log.message}`
+        ).join('\n');
+        
+        const blob = new Blob([logsText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `logcat_${new Date().getTime()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showSuccess("日志已导出");
+    };
+
+    const filteredLogs = () => {
+        const filtered = state.logs.filter(log => {
+            // 如果设置了包名过滤
+            if (state.logFilter.packageName) {
+                // 如果有PID，使用精确匹配
+                if (filterPids().length > 0) {
+                    const logPid = log.pid || '';
+                    const matches = filterPids().includes(logPid);
+                    if (!matches) {
+                        return false;
+                    }
+                } else {
+                    // 没有PID说明应用未运行，不显示任何日志
+                    return false;
+                }
+            }
+            
+            if (state.logFilter.keywords) {
+                const keywords = state.logFilter.keywords.toLowerCase();
+                const searchText = `${log.tag} ${log.message}`.toLowerCase();
+                if (!searchText.includes(keywords)) {
+                    return false;
+                }
+            }
+            
+            const levelPriority: Record<LogLevel, number> = {
+                'Verbose': 0, 'Debug': 1, 'Info': 2, 'Warn': 3, 'Error': 4
+            };
+            
+            if (levelPriority[log.level] < levelPriority[state.logFilter.logLevel]) {
+                return false;
+            }
+            
+            return true;
+        });
+        
+        // 显示更详细的调试信息
+        const samplePids = state.logs.slice(0, 10).map(log => log.pid);
+        console.log('[Logcat] Total logs:', state.logs.length, 'Filtered:', filtered.length);
+        console.log('[Logcat] Filter PIDs:', filterPids(), '(count:', filterPids().length + ')');
+        console.log('[Logcat] Package filter:', state.logFilter.packageName);
+        console.log('[Logcat] Sample log PIDs:', samplePids);
+        
+        return filtered;
+    };
+
+    onMount(() => {
+        isActive = true;
+        loadInstalledApps(); // 加载已安装应用列表
+    });
+    
+    onCleanup(() => {
+        isActive = false;
+        if (pollTimer) {
+            clearTimeout(pollTimer);
+        }
+        if (state.isLogging) {
+            AdbApi.stopLogcat();
+        }
+    });
+
+    return (
+        <div class="logcat-view">
+            <div class="section-header">
+                <h3>日志查看</h3>
+                <div class="log-controls">
+                    <button
+                        onClick={toggleLogging}
+                        class={state.isLogging ? "btn-warning" : "btn-primary"}
+                    >
+                        {state.isLogging ? "停止记录" : "开始记录"}
+                    </button>
+                    <button onClick={clearLogs} class="btn-secondary">
+                        清空日志
+                    </button>
+                    <button onClick={exportLogs} class="btn-secondary" disabled={state.logs.length === 0}>
+                        导出日志
+                    </button>
+                </div>
+            </div>
+
+            <div class="log-filters">
+                <div class="filter-group autocomplete-container">
+                    <label>包名/标签过滤:</label>
+                    <input
+                        type="text"
+                        value={state.logFilter.packageName}
+                        placeholder="com.example.app 或 ActivityManager"
+                        onInput={(e) =>
+                            updateLogFilter(
+                                "packageName",
+                                e.currentTarget.value,
+                            )
+                        }
+                        onFocus={() => setShowPackageSuggestions(state.logFilter.packageName.length > 0)}
+                    />
+                    <Show when={showPackageSuggestions() && filteredPackageSuggestions().length > 0}>
+                        <div class="autocomplete-suggestions">
+                            <For each={filteredPackageSuggestions()}>
+                                {(app) => (
+                                    <div 
+                                        class="suggestion-item"
+                                        onClick={(e) => {
+                                            e.preventDefault(); // 阻止输入框失焦
+                                            selectPackage(app.packageName);
+                                        }}
+                                    >
+                                        <span style="font-weight: 500;">{app.displayName}</span>
+                                        <span style="color: #888; font-size: 12px; margin-left: 8px;">({app.packageName})</span>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
+                </div>
+
+                <div class="filter-group">
+                    <label>关键词过滤:</label>
+                    <input
+                        type="text"
+                        value={state.logFilter.keywords}
+                        placeholder="搜索关键词"
+                        onInput={(e) =>
+                            updateLogFilter("keywords", e.currentTarget.value)
+                        }
+                    />
+                </div>
+
+                <div class="filter-group">
+                    <label>日志级别:</label>
+                    <select
+                        value={state.logFilter.logLevel}
+                        onChange={(e) =>
+                            updateLogFilter(
+                                "logLevel",
+                                e.currentTarget.value as LogLevel,
+                            )
+                        }
+                    >
+                        <option value="Verbose">Verbose</option>
+                        <option value="Debug">Debug</option>
+                        <option value="Info">Info</option>
+                        <option value="Warn">Warn</option>
+                        <option value="Error">Error</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="log-output" ref={logOutputRef}>
+                <Show when={filteredLogs().length === 0 && !state.isLogging}>
+                    <div class="log-empty">
+                        {state.logs.length === 0 ? "点击 \"开始记录\" 查看设备日志" : "没有符合过滤条件的日志"}
+                    </div>
+                </Show>
+                <For each={filteredLogs()}>
+                    {(log) => (
+                        <div class={`log-entry log-${log.level.toLowerCase()}`}>
+                            <span class="timestamp">
+                                {log.timestamp}
+                            </span>
+                            <span class="level">{log.level[0]}</span>
+                            <span class="package">{log.packageName || log.tag}</span>
+                            <span class="message">{log.message}</span>
+                        </div>
+                    )}
+                </For>
+            </div>
         </div>
-      </div>
-      
-      <div class="log-output">
-        {state.logs.map(log => (
-          <div class={`log-entry log-${log.level.toLowerCase()}`}>
-            <span class="timestamp">{new Date(log.timestamp).toLocaleTimeString()}</span>
-            <span class="level">{log.level}</span>
-            <span class="tag">{log.tag}</span>
-            <span class="message">{log.message}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    );
 };
 
 const QuickActions = () => {
-  const captureScreen = () => {
-    alert('正在截取屏幕...');
-    // 这里应该调用后端API执行截图操作
-  };
+    const getSavePath = () => {
+        return ConfigManager.get('lastSavePath') || '';
+    };
 
-  const startRecording = () => {
-    alert('开始录制屏幕...');
-    // 这里应该调用后端API执行录屏操作
-  };
+    const chooseSavePath = async () => {
+        try {
+            const result = await AdbApi.chooseDirectory();
+            if (result.success && result.data) {
+                ConfigManager.set('lastSavePath', result.data.path);
+                showSuccess('保存位置已设置: ' + result.data.path);
+            }
+        } catch (error) {
+            showError('选择目录失败: ' + String(error));
+        }
+    };
 
-  const installApp = () => {
-    alert('请选择APK文件进行安装...');
-    // 这里应该打开文件选择器并调用安装API
-  };
+    const captureScreen = async () => {
+        if (!state.selectedDevice) {
+            showWarning("请先选择设备");
+            return;
+        }
+        
+        setState("isLoading", true);
+        setState("currentCommand", "adb shell screencap");
+        
+        try {
+            const savePath = getSavePath();
+            const result = await AdbApi.captureScreen(state.selectedDevice, savePath);
+            if (result.success && result.data) {
+                showSuccess(result.message || "截图成功");
+                // 保存截图路径并显示预览
+                setState("screenshots", [...state.screenshots, result.data.path]);
+                setState("previewImage", "file://" + result.data.path);
+            } else {
+                showError(result.error || "截图失败");
+            }
+        } catch (error) {
+            showError("截图失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    };
 
-  const uninstallApp = () => {
-    alert('请输入包名卸载应用...');
-    // 这里应该弹出输入框获取包名并调用卸载API
-  };
+    const startRecording = async () => {
+        if (!state.selectedDevice) {
+            showWarning("请先选择设备");
+            return;
+        }
 
-  const pushFile = () => {
-    alert('请选择要推送的文件...');
-  };
+        if (state.isRecording) {
+            showWarning("正在录制中");
+            return;
+        }
 
-  const pullFile = () => {
-    alert('请选择要拉取的文件...');
-  };
+        setState("isLoading", true);
+        setState("currentCommand", "adb shell screenrecord");
 
-  const clearAppData = () => {
-    alert('请输入包名以清除应用数据...');
-  };
+        try {
+            const result = await AdbApi.startRecording(state.selectedDevice);
+            if (result.success) {
+                setState("isRecording", true);
+                setState("recordingStartTime", Date.now());
+                showSuccess("录屏已开始（最长3分钟）");
+            } else {
+                showError(result.error || "启动录屏失败");
+            }
+        } catch (error) {
+            showError("启动录屏失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    };
 
-  const forceStopApp = () => {
-    alert('请输入包名以强制停止应用...');
-  };
+    const stopRecording = async () => {
+        if (!state.selectedDevice || !state.isRecording) {
+            return;
+        }
 
-  const rebootDevice = () => {
-    if (confirm('确定要重启设备吗？')) {
-      alert('正在重启设备...');
-    }
-  };
+        setState("isLoading", true);
+        setState("currentCommand", "adb pull recording.mp4");
 
-  const rebootRecovery = () => {
-    if (confirm('确定要重启到恢复模式吗？')) {
-      alert('正在重启到恢复模式...');
-    }
-  };
+        try {
+            const savePath = getSavePath();
+            const result = await AdbApi.stopRecording(state.selectedDevice, savePath);
+            
+            setState("isRecording", false);
+            setState("recordingStartTime", null);
+            
+            if (result.success && result.data) {
+                showSuccess("录屏已保存");
+                // 显示预览对话框
+                setState("previewVideo", "file://" + result.data.path);
+            } else {
+                showError(result.error || "停止录屏失败");
+            }
+        } catch (error) {
+            showError("停止录屏失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    };
 
-  return (
-    <div class="quick-actions">
-      <div class="section-header">
-        <h3>便捷操作</h3>
-      </div>
-      
-      <div class="action-category">
-        <h4>媒体操作</h4>
-        <div class="actions-row">
-          <button onClick={captureScreen} class="action-btn btn-primary-light">截取屏幕</button>
-          <button onClick={startRecording} class="action-btn btn-primary-light">开始录屏</button>
+    const [recordingTime, setRecordingTime] = createSignal("00:00");
+    let recordingTimer: number | undefined;
+    
+    onMount(() => {
+        recordingTimer = window.setInterval(() => {
+            if (state.isRecording && state.recordingStartTime) {
+                const elapsed = Math.floor((Date.now() - state.recordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                setRecordingTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+            }
+        }, 1000);
+    });
+
+    onCleanup(() => {
+        if (recordingTimer) {
+            clearInterval(recordingTimer);
+        }
+    });
+
+    const installApp = () => {
+        showInfo("安装应用功能即将推出");
+    };
+
+    const uninstallApp = () => {
+        showInfo("卸载应用功能即将推出");
+    };
+
+    const clearAppData = () => {
+        showInfo("清除数据功能即将推出");
+    };
+
+    const forceStopApp = () => {
+        showInfo("强制停止功能即将推出");
+    };
+
+    return (
+        <div class="quick-actions">
+            <div class="section-header">
+                <h3>便捷操作</h3>
+                <div class="log-controls">
+                    <button onClick={chooseSavePath} class="btn-secondary">
+                        设置保存位置
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-category">
+                <h4>媒体操作</h4>
+                <div class="actions-row">
+                    <button
+                        onClick={captureScreen}
+                        class="action-btn btn-primary-light"
+                        disabled={state.isLoading}
+                    >
+                        截取屏幕
+                    </button>
+                    <Show when={!state.isRecording}>
+                        <button
+                            onClick={startRecording}
+                            class="action-btn btn-primary-light"
+                            disabled={state.isLoading}
+                        >
+                            开始录屏
+                        </button>
+                    </Show>
+                    <Show when={state.isRecording}>
+                        <button
+                            onClick={stopRecording}
+                            class="action-btn btn-warning"
+                            disabled={state.isLoading}
+                        >
+                            停止录屏 ({recordingTime()})
+                        </button>
+                    </Show>
+                </div>
+            </div>
+
+            <div class="action-category">
+                <h4>应用管理</h4>
+                <div class="actions-row">
+                    <button
+                        onClick={installApp}
+                        class="action-btn btn-success-light"
+                    >
+                        安装应用
+                    </button>
+                    <button
+                        onClick={uninstallApp}
+                        class="action-btn btn-danger-light"
+                    >
+                        卸载应用
+                    </button>
+                </div>
+            </div>
+            
         </div>
-      </div>
-      
-      <div class="action-category">
-        <h4>应用管理</h4>
-        <div class="actions-row">
-          <button onClick={installApp} class="action-btn btn-success-light">安装应用</button>
-          <button onClick={uninstallApp} class="action-btn btn-danger-light">卸载应用</button>
-          <button onClick={forceStopApp} class="action-btn btn-warning-light">强制停止应用</button>
-          <button onClick={clearAppData} class="action-btn btn-warning-light">清除应用数据</button>
+    );
+};
+
+const FileManagement = () => {
+    const [remotePath, setRemotePath] = createSignal("/sdcard/Download/");
+    const [localPath, setLocalPath] = createSignal("");
+    const [browserMode, setBrowserMode] = createSignal("");
+    const [selectedFile, setSelectedFile] = createSignal("");
+    const [currentDevicePath, setCurrentDevicePath] = createSignal("/sdcard/");
+    const [deviceFiles, setDeviceFiles] = createSignal<Array<{name: string, isDirectory: boolean, path: string}>>([]);
+    const [showFileBrowser, setShowFileBrowser] = createSignal(false);
+
+    const chooseLocalFile = async () => {
+        try {
+            const result = await AdbApi.chooseFile();
+            if (result.success && result.data?.path) {
+                setSelectedFile(result.data.path);
+                showSuccess("已选择文件: " + result.data.path);
+            }
+        } catch (error) {
+            showError("选择文件失败: " + String(error));
+        }
+    };
+
+    const chooseSaveLocation = async () => {
+        try {
+            const result = await AdbApi.chooseDirectory();
+            if (result.success && result.data?.path) {
+                setLocalPath(result.data.path);
+                showSuccess("保存位置已设置: " + result.data.path);
+            }
+        } catch (error) {
+            showError("选择目录失败: " + String(error));
+        }
+    };
+
+    const loadDeviceFiles = async (path: string) => {
+        if (!state.selectedDevice) {
+            showWarning("请先选择设备");
+            return;
+        }
+
+        setState("isLoading", true);
+        try {
+            const result = await AdbApi.listDeviceFiles(state.selectedDevice, path);
+            if (result.success && result.data) {
+                setDeviceFiles(result.data.files);
+                setCurrentDevicePath(result.data.currentPath);
+            } else {
+                showError(result.error || "加载文件列表失败");
+            }
+        } catch (error) {
+            showError("加载文件列表失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+        }
+    };
+
+    const selectDeviceFile = (file: {name: string, isDirectory: boolean, path: string}) => {
+        if (file.isDirectory) {
+            // 如果是推送模式且点击文件夹，可以选择该文件夹作为目标路径
+            if (browserMode() === 'push') {
+                setRemotePath(file.path);
+                setShowFileBrowser(false);
+                showSuccess("已选择目标路径: " + file.path);
+            } else {
+                loadDeviceFiles(file.path);
+            }
+        } else {
+            setRemotePath(file.path);
+            setShowFileBrowser(false);
+            showSuccess("已选择文件: " + file.path);
+        }
+    };
+
+    const goToParentDirectory = () => {
+        const path = currentDevicePath();
+        const parts = path.split('/').filter(p => p);
+        parts.pop();
+        const newPath = '/' + parts.join('/') + '/';
+        loadDeviceFiles(newPath);
+    };
+
+    const openFileBrowser = (mode: 'pull' | 'push' = 'pull') => {
+        setBrowserMode(mode);
+        setShowFileBrowser(true);
+        loadDeviceFiles(currentDevicePath());
+    };
+
+    const copyPathToClipboard = (path: string) => {
+        navigator.clipboard.writeText(path).then(() => {
+            showSuccess('路径已复制: ' + path);
+            setRemotePath(path);
+        }).catch(() => {
+            showError('复制失败');
+        });
+    };
+
+    const pushFileToDevice = async () => {
+        if (!state.selectedDevice) {
+            showWarning("请先选择设备");
+            return;
+        }
+
+        if (!selectedFile()) {
+            showWarning("请先选择要推送的文件");
+            return;
+        }
+
+        if (!remotePath()) {
+            showWarning("请输入设备路径");
+            return;
+        }
+
+        setState("isLoading", true);
+        try {
+            const result = await AdbApi.pushFile(
+                state.selectedDevice,
+                selectedFile(),
+                remotePath()
+            );
+            if (result.success) {
+                showSuccess(result.message || "文件推送成功");
+                setSelectedFile("");
+            } else {
+                showError(result.error || "文件推送失败");
+            }
+        } catch (error) {
+            showError("文件推送失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+        }
+    };
+
+    const pullFileFromDevice = async () => {
+        if (!state.selectedDevice) {
+            showWarning("请先选择设备");
+            return;
+        }
+
+        if (!remotePath()) {
+            showWarning("请输入设备文件路径");
+            return;
+        }
+
+        setState("isLoading", true);
+        try {
+            const result = await AdbApi.pullFile(
+                state.selectedDevice,
+                remotePath(),
+                localPath()
+            );
+            if (result.success) {
+                showSuccess(result.message || "文件拉取成功");
+            } else {
+                showError(result.error || "文件拉取失败");
+            }
+        } catch (error) {
+            showError("文件拉取失败: " + String(error));
+        } finally {
+            setState("isLoading", false);
+        }
+    };
+
+    return (
+        <div class="file-management">
+            <div class="section-header">
+                <h3>文件管理</h3>
+            </div>
+
+            <div class="file-section">
+                <h4>推送文件到设备 (Push)</h4>
+                <div class="form-group">
+                    <label>本地文件:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input
+                            type="text"
+                            value={selectedFile()}
+                            readonly
+                            placeholder="点击选择文件"
+                            style="flex: 1;"
+                        />
+                        <button onClick={chooseLocalFile} class="btn-secondary">
+                            选择文件
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>设备目标路径:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input
+                            type="text"
+                            value={remotePath()}
+                            onInput={(e) => setRemotePath(e.currentTarget.value)}
+                            placeholder="/sdcard/Download/"
+                            style="flex: 1;"
+                        />
+                        <button onClick={() => openFileBrowser('push')} class="btn-secondary">
+                            浏览
+                        </button>
+                    </div>
+                    <small>设备上的目标路径，如 /sdcard/Download/，或点击"浏览"选择</small>
+                </div>
+                <button 
+                    onClick={pushFileToDevice} 
+                    class="btn-primary"
+                    disabled={state.isLoading || !selectedFile()}
+                >
+                    推送文件
+                </button>
+            </div>
+
+            <div class="file-section">
+                <h4>从设备拉取文件 (Pull)</h4>
+                <div class="form-group">
+                    <label>设备文件路径:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input
+                            type="text"
+                            value={remotePath()}
+                            onInput={(e) => setRemotePath(e.currentTarget.value)}
+                            placeholder="/sdcard/Download/file.txt"
+                            style="flex: 1;"
+                        />
+                        <button onClick={() => openFileBrowser('pull')} class="btn-secondary">
+                            浏览
+                        </button>
+                    </div>
+                    <small>设备上的文件完整路径，或点击"浏览"选择</small>
+                </div>
+                <div class="form-group">
+                    <label>本地保存位置:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input
+                            type="text"
+                            value={localPath()}
+                            readonly
+                            placeholder="未设置（保存到桌面）"
+                            style="flex: 1;"
+                        />
+                        <button onClick={chooseSaveLocation} class="btn-secondary">
+                            选择位置
+                        </button>
+                    </div>
+                    <small>留空将保存到桌面</small>
+                </div>
+                <button 
+                    onClick={pullFileFromDevice} 
+                    class="btn-primary"
+                    disabled={state.isLoading || !remotePath()}
+                >
+                    拉取文件
+                </button>
+            </div>
+
+            <div class="file-section">
+                <h4>常用路径参考</h4>
+                <div class="path-list">
+                    <div class="path-item" onClick={() => copyPathToClipboard('/sdcard/Download/')}>
+                        <strong>/sdcard/Download/</strong> - 下载文件夹
+                        <button class="copy-btn" title="复制路径">📋</button>
+                    </div>
+                    <div class="path-item" onClick={() => copyPathToClipboard('/sdcard/DCIM/')}>
+                        <strong>/sdcard/DCIM/</strong> - 相机照片
+                        <button class="copy-btn" title="复制路径">📋</button>
+                    </div>
+                    <div class="path-item" onClick={() => copyPathToClipboard('/sdcard/Pictures/')}>
+                        <strong>/sdcard/Pictures/</strong> - 图片文件夹
+                        <button class="copy-btn" title="复制路径">📋</button>
+                    </div>
+                    <div class="path-item" onClick={() => copyPathToClipboard('/data/local/tmp/')}>
+                        <strong>/data/local/tmp/</strong> - 临时文件夹
+                        <button class="copy-btn" title="复制路径">📋</button>
+                    </div>
+                </div>
+            </div>
+
+            <Show when={showFileBrowser()}>
+                <div class="dialog-overlay" onClick={() => setShowFileBrowser(false)}>
+                    <div class="file-browser-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="dialog-header">
+                            <h3>{browserMode() === 'push' ? '选择目标路径' : '浏览设备文件'}</h3>
+                            <button class="dialog-close" onClick={() => setShowFileBrowser(false)}>×</button>
+                        </div>
+                        <div class="file-browser-toolbar">
+                            <button onClick={goToParentDirectory} class="btn-secondary" disabled={currentDevicePath() === '/'}>
+                                ← 上级目录
+                            </button>
+                            <span class="current-path">{currentDevicePath()}</span>
+                        </div>
+                        <div class="file-browser-content">
+                            <Show when={deviceFiles().length === 0}>
+                                <div class="file-empty">此目录为空</div>
+                            </Show>
+                            <For each={deviceFiles()}>
+                                {(file) => (
+                                    <div 
+                                        class="file-item"
+                                        onClick={() => selectDeviceFile(file)}
+                                    >
+                                        <span class="file-icon">{file.isDirectory ? '📁' : '📄'}</span>
+                                        <span class="file-name">{file.name}</span>
+                                    </div>
+                                )}
+                            </For>
+                        </div>
+                        <div class="dialog-footer">
+                            <Show when={browserMode() === 'push'}>
+                                <button 
+                                    onClick={() => {
+                                        setRemotePath(currentDevicePath());
+                                        setShowFileBrowser(false);
+                                        showSuccess('已选择当前路径: ' + currentDevicePath());
+                                    }} 
+                                    class="btn-primary"
+                                >
+                                    使用当前路径
+                                </button>
+                            </Show>
+                            <button onClick={() => setShowFileBrowser(false)} class="btn-secondary">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
         </div>
-      </div>
-      
-      <div class="action-category">
-        <h4>文件传输</h4>
-        <div class="actions-row">
-          <button onClick={pushFile} class="action-btn btn-secondary-light">推送文件</button>
-          <button onClick={pullFile} class="action-btn btn-secondary-light">拉取文件</button>
+    );
+};
+
+const Settings = () => {
+    const [refreshInterval, setRefreshInterval] = createSignal(ConfigManager.get('refreshInterval') || 3000);
+    const [lastSavePath, setLastSavePath] = createSignal(ConfigManager.get('lastSavePath') || '');
+    const [logLimit, setLogLimit] = createSignal(ConfigManager.get('logLimit') || 100);
+    const [logPollInterval, setLogPollInterval] = createSignal(ConfigManager.get('logPollInterval') || 300);
+    
+    const saveSettings = () => {
+        ConfigManager.set('refreshInterval', refreshInterval());
+        ConfigManager.set('logLimit', logLimit());
+        ConfigManager.set('logPollInterval', logPollInterval());
+        alert('设置已保存！');
+    };
+    
+    const chooseSavePath = async () => {
+        const result = await AdbApi.chooseDirectory();
+        if (result.success && result.data?.path) {
+            setLastSavePath(result.data.path);
+            ConfigManager.set('lastSavePath', result.data.path);
+        }
+    };
+    
+    return (
+        <div class="settings">
+            <div class="section-header">
+                <h3>设置</h3>
+            </div>
+            
+            <div class="settings-section">
+                <h4>设备管理</h4>
+                <div class="form-group">
+                    <label>自动刷新间隔 (毫秒):</label>
+                    <input
+                        type="number"
+                        value={refreshInterval()}
+                        onInput={(e) => setRefreshInterval(parseInt(e.currentTarget.value))}
+                        min="1000"
+                        step="1000"
+                    />
+                    <small>建议值: 2000-5000ms，过低可能影响性能</small>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h4>截图设置</h4>
+                <div class="form-group">
+                    <label>默认保存位置:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input
+                            type="text"
+                            value={lastSavePath()}
+                            readonly
+                            placeholder="未设置（使用桌面）"
+                            style="flex: 1;"
+                        />
+                        <button onClick={chooseSavePath} class="btn-secondary">
+                            选择文件夹
+                        </button>
+                    </div>
+                    <small>留空将默认保存到桌面</small>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h4>日志设置</h4>
+                <div class="form-group">
+                    <label>日志显示条数:</label>
+                    <input
+                        type="number"
+                        value={logLimit()}
+                        onInput={(e) => setLogLimit(parseInt(e.currentTarget.value))}
+                        min="10"
+                        max="1000"
+                        step="10"
+                    />
+                    <small>日志列表最多显示的条数 (10-1000)</small>
+                </div>
+                <div class="form-group">
+                    <label>日志轮询间隔 (毫秒):</label>
+                    <input
+                        type="number"
+                        value={logPollInterval()}
+                        onInput={(e) => setLogPollInterval(parseInt(e.currentTarget.value))}
+                        min="50"
+                        max="2000"
+                        step="50"
+                    />
+                    <small>日志更新频率 (50-2000ms)，值越小更新越快但CPU占用越高</small>
+                </div>
+            </div>
+            
+            <div class="settings-footer">
+                <button onClick={saveSettings} class="btn-primary">
+                    保存设置
+                </button>
+            </div>
         </div>
-      </div>
-      
-      <div class="action-category">
-        <h4>设备控制</h4>
-        <div class="actions-row">
-          <button onClick={rebootDevice} class="action-btn btn-danger-light">重启设备</button>
-          <button onClick={rebootRecovery} class="action-btn btn-danger-light">重启到恢复模式</button>
-        </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 const App = () => {
-  const [activeTab, setActiveTab] = createSignal<Tab>('device-management');
-  
-  return (
-    <Layout activeTab={activeTab()} setActiveTab={setActiveTab}>
-      {activeTab() === 'device-management' && <DeviceManagement />}
-      {activeTab() === 'logcat' && <LogcatView />}
-      {activeTab() === 'quick-actions' && <QuickActions />}
-    </Layout>
-  );
+    const [activeTab, setActiveTab] = createSignal<Tab>("device-management");
+
+    const handleTabChange = (tab: Tab) => {
+        setActiveTab(tab);
+    };
+    
+    const closePreview = () => {
+        setState("previewImage", null);
+    };
+    
+    const openVideoFolder = () => {
+        if (!state.previewVideo) return;
+        
+        const filePath = state.previewVideo.replace("file://", "");
+        const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+        
+        if (navigator.platform.toLowerCase().includes('mac')) {
+            AdbApi.execCommand(`open "${folderPath}"`);
+        } else if (navigator.platform.toLowerCase().includes('win')) {
+            AdbApi.execCommand(`explorer "${folderPath}"`);
+        } else {
+            showError(`Unsupported platform for opening folder: ${navigator.platform}`);
+        }
+    };
+    
+    return (
+        <>
+            <Layout activeTab={activeTab()} setActiveTab={handleTabChange}>
+                <Show when={activeTab() === 'device-management'}>
+                    <DeviceManagement />
+                </Show>
+                <Show when={activeTab() === 'logcat'}>
+                    <LogcatView />
+                </Show>
+                <Show when={activeTab() === 'quick-actions'}>
+                    <QuickActions />
+                </Show>
+                <Show when={activeTab() === 'file-management'}>
+                    <FileManagement />
+                </Show>
+                <Show when={activeTab() === 'settings'}>
+                    <Settings />
+                </Show>
+            </Layout>
+            
+            <Show when={state.previewImage}>
+                <div class="dialog-overlay" onClick={closePreview}>
+                    <div class="preview-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="dialog-header">
+                            <h3>截图预览</h3>
+                            <button class="dialog-close" onClick={closePreview}>×</button>
+                        </div>
+                        <div class="preview-content">
+                            <img src={state.previewImage!} alt="截图预览" />
+                        </div>
+                        <div class="dialog-footer">
+                            <button onClick={closePreview} class="btn-primary">
+                                关闭
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
+            
+            <Show when={state.previewVideo}>
+                <div class="dialog-overlay" onClick={() => setState("previewVideo", null)}>
+                    <div class="preview-dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="dialog-header">
+                            <h3>录屏预览</h3>
+                            <button class="dialog-close" onClick={() => setState("previewVideo", null)}>×</button>
+                        </div>
+                        <div class="preview-content">
+                            <video src={state.previewVideo!} controls autoplay style="max-width: 100%; max-height: 70vh;" />
+                        </div>
+                        <div class="dialog-footer">
+                            <button onClick={openVideoFolder} class="btn-secondary" style="margin-right: 10px;">
+                                打开文件夹
+                            </button>
+                            <button onClick={() => setState("previewVideo", null)} class="btn-primary">
+                                关闭
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
+        </>
+    );
 };
 
 render(() => <App />, document.getElementById("solid-app")!);
