@@ -5,6 +5,11 @@
  * @LastEditTime: 2026-02-04 10:25:23
  */
 
+// 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
+#ifdef _WIN32
+#define NOMINMAX
+#endif
+
 #include "webview-core/webview/webview.h"
 #include "nlohmann/json.hpp"
 #include <iostream>
@@ -23,7 +28,6 @@
 using json = nlohmann::json;
 
 #ifdef _WIN32
-#define NOMINMAX  // 禁用 Windows.h 中的 min/max 宏
 #include <windows.h>
 #include <direct.h>
 #include <shlobj.h>
