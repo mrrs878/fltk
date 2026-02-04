@@ -96,20 +96,36 @@ file(GLOB_RECURSE RESOURCE_FILES
 
 # macOS: 开发模式使用符号链接，发布模式复制资源
 if(APPLE)
-    # 开发时创建符号链接到源码目录，这样修改 HTML 可以立即生效
-    add_custom_command(TARGET quick_adb POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources"
-        COMMAND ${CMAKE_COMMAND} -E create_symlink 
-            "${PROJECT_SOURCE_DIR}/frontend/dist" 
-            "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/frontend"
-        # Only copy macOS-specific adb tools
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory 
-            "${PROJECT_SOURCE_DIR}/resources/adb/mac" 
-            "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb/mac"
-        COMMENT "🔗 Creating symlinks to frontend/dist + copying macOS adb tools"
-        VERBATIM
-    )
+    # 检查是否为 Release 构建或 CI 环境
+    if(CMAKE_BUILD_TYPE STREQUAL "Release" OR DEFINED ENV{CI})
+        # Release/CI 模式：复制文件
+        add_custom_command(TARGET quick_adb POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory 
+                "${PROJECT_SOURCE_DIR}/frontend/dist" 
+                "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/frontend"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory 
+                "${PROJECT_SOURCE_DIR}/resources/adb/mac" 
+                "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb/mac"
+            COMMENT "📦 Copying frontend/dist + macOS adb tools (Release mode)"
+            VERBATIM
+        )
+    else()
+        # Debug 模式：使用符号链接
+        add_custom_command(TARGET quick_adb POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink 
+                "${PROJECT_SOURCE_DIR}/frontend/dist" 
+                "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/frontend"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory 
+                "${PROJECT_SOURCE_DIR}/resources/adb/mac" 
+                "$<TARGET_BUNDLE_CONTENT_DIR:quick_adb>/Resources/resources/adb/mac"
+            COMMENT "🔗 Creating symlinks to frontend/dist + copying macOS adb tools (Debug mode)"
+            VERBATIM
+        )
+    endif()
     
 elseif(WIN32)
     # Copy resources after building
