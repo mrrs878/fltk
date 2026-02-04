@@ -14,6 +14,7 @@
 #include <sstream>
 #include <cstdio>
 #include <thread>
+#include <mutex>
 #include <chrono>
 #include <ctime>
 #include <sys/stat.h>
@@ -22,11 +23,14 @@
 using json = nlohmann::json;
 
 #ifdef _WIN32
+#define NOMINMAX  // 禁用 Windows.h 中的 min/max 宏
 #include <windows.h>
 #include <direct.h>
 #include <shlobj.h>
 #pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
 #define PATH_SEP "\\"
+#define popen _popen
+#define pclose _pclose
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #include <libgen.h>
