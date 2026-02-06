@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-06 16:56:29
+ * @LastEditTime: 2026-02-06 19:50:51
  */
 
 import { createStore } from "solid-js/store";
@@ -157,6 +157,7 @@ const DeviceManagement = () => {
     const [connectIP, setConnectIP] = createSignal("");
     const [connectPort, setConnectPort] = createSignal("5555");
     const [showConnectDialog, setShowConnectDialog] = createSignal(false);
+    const [showConnectHelpDialog, setShowConnectHelpDialog] = createSignal(false);
 
     const refreshDevices = async (showStatus = false) => {
         if (!isActive || isRefreshing) return;
@@ -232,6 +233,14 @@ const DeviceManagement = () => {
         setConnectPort("5555");
     };
 
+    const openConnectHelpDialog = () => {
+        setShowConnectHelpDialog(true);
+    };
+
+    const closeConnectHelpDialog = () => {
+        setShowConnectHelpDialog(false);
+    };
+
     const connectWirelessDevice = async () => {
         const ip = connectIP().trim();
         const port = connectPort().trim();
@@ -292,6 +301,23 @@ const DeviceManagement = () => {
             setState("currentCommand", "");
         }
     };
+
+    const connectDeviceHelp = async () => {
+        try {
+            setState("isLoading", true);
+            setState("currentCommand", `adb tcpip 5555`);
+            const result = await AdbApi.execCommand("adb tcpip 5555");
+            if (result.success) {
+                showSuccess("修复成功，现在可断开数据线，下次可使用无线连接");
+                await connectWirelessDevice();
+            } else {
+                showError(result.error || "修复失败");
+            }
+        } finally {
+            setState("isLoading", false);
+            setState("currentCommand", "");
+        }
+    }
 
     const startAutoRefresh = () => {
         stopAutoRefresh();
@@ -361,9 +387,12 @@ const DeviceManagement = () => {
                             <h3>无线连接设备</h3>
                             <button class="dialog-close" onClick={closeConnectDialog}>×</button>
                         </div>
-                        <div class="dialog-body">
+                        <div class="dialog-body wireless-connect">
                             <div class="form-group">
-                                <label>IP 地址</label>
+                                <label class="ip-label">
+                                    <span>IP 地址</span>
+                                    <button class="btn-link ip-help" data-tooltip="设置 - 关于手机 - IP地址">如何查看</button>
+                                </label>
                                 <input
                                     type="text"
                                     placeholder="例如: 192.168.1.100"
@@ -393,11 +422,38 @@ const DeviceManagement = () => {
                             </div>
                         </div>
                         <div class="dialog-footer">
+                            <button onClick={openConnectHelpDialog} class="btn-secondary">
+                                连接失败❓
+                            </button>
+                            <div class="flex-1" />
                             <button onClick={closeConnectDialog} class="btn-secondary">
                                 取消
                             </button>
                             <button onClick={connectWirelessDevice} class="btn-primary">
                                 连接
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Show>
+
+            <Show when={showConnectHelpDialog()}>
+                <div class="dialog-overlay" onClick={closeConnectHelpDialog}>
+                    <div class="dialog" onClick={(e) => e.stopPropagation()}>
+                        <div class="dialog-header">
+                            <h3>连接设备帮助</h3>
+                            <button class="dialog-close" onClick={closeConnectHelpDialog}>×</button>
+                        </div>
+                        <div class="dialog-body connection-help"> 
+                            <div>1. 进入设置 - 关于手机 - 版本号 - 连续点击7次以启用开发者模式</div>
+                            <div>2. 进入设置 - 系统 - 开发者选项 - 允许 USB 调试</div>
+                            <div>3. 使用数据线连接设备</div>
+                            <div>4. 设备中弹窗勾选一律允许，点击确认</div>
+                            <div>5. 点击弹窗下方的<span class="help-emoji">👇</span>确认按钮</div>
+                        </div>
+                        <div class="dialog-footer">
+                            <button onClick={connectDeviceHelp} class="btn-primary">
+                                👉确认👈
                             </button>
                         </div>
                     </div>
@@ -1624,7 +1680,7 @@ const App = () => {
                             <button title="打开文件夹" onClick={openImageFolder} class="btn-secondary">
                                 打开文件夹
                             </button>
-                            <div class="full" />
+                            <div class="flex-1" />
                             <button onClick={closePreview} class="btn-primary">
                                 关闭
                             </button>
@@ -1650,7 +1706,7 @@ const App = () => {
                             <button title="打开文件夹" onClick={openVideoFolder} class="btn-secondary">
                                 打开文件夹
                             </button>
-                            <div class="full" />
+                            <div class="flex-1" />
                             <button onClick={() => setState("previewVideo", null)} class="btn-primary">
                                 关闭
                             </button>
