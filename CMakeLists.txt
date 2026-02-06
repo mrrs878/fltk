@@ -66,15 +66,6 @@ elseif(WIN32)
         advapi32 ole32 shell32 shlwapi user32 version
     )
     
-    # Copy frontend resources to build directory
-    add_custom_command(TARGET quick_adb POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/frontend
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/frontend $<TARGET_FILE_DIR:quick_adb>/frontend
-        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:quick_adb>/resources
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/resources $<TARGET_FILE_DIR:quick_adb>/resources
-        COMMENT "📦 Copying Windows resources..."
-    )
-    
 else()
     add_executable(quick_adb ${SOURCES})
     
