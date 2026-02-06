@@ -139,15 +139,7 @@ std::string exec_command(const std::string &cmd)
     std::array<char, 128> buffer;
     std::string result;
     
-    // 确保在有效目录中执行命令，避免 "getcwd: cannot access parent directories" 错误
-    std::string safe_cmd = cmd;
-#ifdef _WIN32
-    safe_cmd = "cd %TEMP% && " + cmd;
-#else
-    safe_cmd = "cd /tmp && " + cmd;
-#endif
-    
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(safe_cmd.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
 
     if (!pipe)
     {
@@ -1508,6 +1500,13 @@ int main()
 {
     // 注册退出时清理函数
     std::atexit(cleanup_on_exit);
+    
+    // 预热 adb 服务器（在后台启动，不等待结果）
+    std::thread([]() {
+        std::string adb_path = get_adb_path();
+        std::string cmd = "\"" + adb_path + "\" start-server";
+        exec_command(cmd);
+    }).detach();
     
     // Create a webview window
     // Debug 模式启用开发者工具，Release 模式禁用右键菜单和开发者选项
