@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-02-02 20:00:00
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-03 16:34:09
+ * @LastEditTime: 2026-02-05 17:54:53
  */
 
 // 定义全局 API 接口
@@ -26,6 +26,8 @@ declare global {
         getInstalledApps: (params: string) => Promise<string>;
         getPackagePid: (params: string) => Promise<string>;
         listDeviceFiles: (params: string) => Promise<string>;
+        copyFileToClipboard: (params: string) => Promise<string>;
+        openFolder: (params: string) => Promise<string>;
     }
 }
 
@@ -349,4 +351,30 @@ export class AdbApi {
             return { success: false, error: String(error) };
         }
     }
+
+    static async copyFileToClipboard(filePath: string): Promise<ApiResponse> {
+        try {
+            const params = JSON.stringify({ filePath });
+            const result = await window.copyFileToClipboard(params);
+            const data = this.parseResult(result);
+            return data.success
+                ? { success: true, message: data.message }
+                : { success: false, error: data.error };
+        } catch (error) {
+            return { success: false, error: String(error) };
+        }
+    }
+
+    static async openFolder(filePath: string): Promise<ApiResponse> {
+        try {
+            const result = await window.openFolder(filePath);
+            const data = this.parseResult(result);
+            return data.success
+                ? { success: true, message: data.message }
+                : { success: false, error: data.error };
+        } catch (error) {
+            return { success: false, error: String(error) };
+        }
+    }
+    
 }

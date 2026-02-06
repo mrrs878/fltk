@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-04 10:25:23
+ * @LastEditTime: 2026-02-05 19:53:26
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -47,6 +47,25 @@ using json = nlohmann::json;
 
 #define log_info(msg) std::cout << "[INFO] " << msg << std::endl;
 #define log_error(msg) std::cout << "[ERROR] " << msg << std::endl;
+
+
+std::string folder_path(const std::string& url)
+{
+    std::string filePath;
+    constexpr std::string_view prefix = "file://";
+    if (url.substr(0, prefix.size()) == prefix) {
+        filePath = url.substr(prefix.size());
+    } else {
+        filePath = std::string(url);
+    }
+
+    auto pos = filePath.rfind('/');
+    if (pos == std::string::npos) {
+        return "";
+    }
+
+    return filePath.substr(0, pos);
+}
 
 std::string get_exe_dir()
 {
@@ -119,7 +138,16 @@ std::string exec_command(const std::string &cmd)
 {
     std::array<char, 128> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+    
+    // 确保在有效目录中执行命令，避免 "getcwd: cannot access parent directories" 错误
+    std::string safe_cmd = cmd;
+#ifdef _WIN32
+    safe_cmd = "cd %TEMP% && " + cmd;
+#else
+    safe_cmd = "cd /tmp && " + cmd;
+#endif
+    
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(safe_cmd.c_str(), "r"), pclose);
 
     if (!pipe)
     {
@@ -1078,6 +1106,62 @@ std::string list_device_files(const std::string &req)
     }
 }
 
+std::string open_folder(const std::string &req) 
+{
+    try 
+    {
+        auto j = json::parse(req);
+        std::string file_path = "";
+        if (j.is_array() && !j.empty() && j[0].is_string())
+        {
+            file_path = j[0].get<std::string>();
+        } else {
+            json error = {{"success", false}, {"error", "Invalid request"}};
+            return error.dump();
+        }
+        
+        // 移除 file:// 前缀
+        if (file_path.find("file://") == 0)
+        {
+            file_path = file_path.substr(7);
+        }
+        
+        if (file_path.empty())
+        {
+            json error = {{"success", false}, {"error", "Invalid file path"}};
+            return error.dump();
+        }
+        
+#ifdef _WIN32
+        // Windows: 使用 explorer /select, 打开文件夹并选中文件
+        std::string command = "explorer /select,\"" + file_path + "\"";
+#elif defined(__APPLE__)
+        // macOS: 使用 open -R 在 Finder 中打开并选中文件
+        std::string command = "open -R \"" + file_path + "\"";
+#else
+        log_info("open_folder not implemented on this platform");
+        json error = {{"success", false}, {"error", "Not supported on this platform"}};
+        return error.dump();
+#endif
+        std::string output = exec_command(command);
+        log_info("open_folder command: " + command);
+        log_info("open_folder output: " + output);
+        bool success = output.empty() || output.find("error") == std::string::npos;
+        json result = {
+            {"success", success},
+            {"message", success ? "已打开文件夹并选中文件" : "打开失败: " + output}
+        };
+        return result.dump();
+    }
+    catch (const std::exception &e)
+    {
+        json error = {
+            {"success", false},
+            {"error", e.what()}};
+        return error.dump();
+    }
+}
+
 std::string choose_directory(const std::string &req)
 {
     try
@@ -1289,6 +1373,108 @@ std::string pull_file(const std::string &req)
     }
 }
 
+// 复制文件到剪切板
+std::string copy_file_to_clipboard(const std::string &req)
+{
+    try
+    {
+        auto j = json::parse(req);
+        
+        if (j.is_array() && !j.empty() && j[0].is_string())
+        {
+            std::string nested_str = j[0].get<std::string>();
+            j = json::parse(nested_str);
+        }
+
+        std::string file_path = "";
+        if (j.is_object() && j.contains("filePath"))
+        {
+            file_path = j["filePath"].get<std::string>();
+        }
+
+        if (file_path.empty())
+        {
+            json error = {{"success", false}, {"error", "filePath is required"}};
+            return error.dump();
+        }
+
+        // 移除 file:// 前缀
+        if (file_path.find("file://") == 0)
+        {
+            file_path = file_path.substr(7);
+        }
+
+        // 检查文件是否存在
+        if (!std::filesystem::exists(file_path))
+        {
+            json error = {{"success", false}, {"error", "File not found: " + file_path}};
+            return error.dump();
+        }
+
+#ifdef __APPLE__
+        // macOS: 使用 osascript 调用 AppleScript 复制文件
+        std::string cmd = "osascript -e 'set the clipboard to (read (POSIX file \"" + file_path + "\") as «class PNGf»)' 2>&1";
+        
+        // 对于图片文件，使用更简单的方法
+        std::string ext = std::filesystem::path(file_path).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif")
+        {
+            // 对于图片，使用 osascript
+            cmd = "osascript -e 'set the clipboard to (read (POSIX file \"" + file_path + "\") as JPEG picture)' 2>&1";
+        }
+        else if (ext == ".mp4" || ext == ".mov" || ext == ".avi")
+        {
+            // 视频文件复制为文件引用
+            cmd = "osascript -e 'set the clipboard to (POSIX file \"" + file_path + "\")' 2>&1";
+        }
+        
+        std::string output = exec_command(cmd);
+        bool success = output.empty() || output.find("error") == std::string::npos;
+        
+#elif defined(_WIN32)
+        // Windows: 使用 PowerShell 复制文件
+        std::string ext = std::filesystem::path(file_path).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        
+        std::string ps_cmd;
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif")
+        {
+            // 图片文件：复制图像数据
+            ps_cmd = "powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; "
+                    "$img = [System.Drawing.Image]::FromFile('" + file_path + "'); "
+                    "[System.Windows.Forms.Clipboard]::SetImage($img); "
+                    "$img.Dispose()\"";
+        }
+        else
+        {
+            // 其他文件：复制文件引用
+            ps_cmd = "powershell -Command \"Set-Clipboard -Path '" + file_path + "'\"";
+        }
+        
+        std::string output = exec_command(ps_cmd);
+        bool success = output.find("error") == std::string::npos && output.find("Exception") == std::string::npos;
+#else
+        // Linux: 不支持
+        json error = {{"success", false}, {"error", "Clipboard operation not supported on this platform"}};
+        return error.dump();
+#endif
+
+        json result = {
+            {"success", success},
+            {"message", success ? "已复制到剪切板" : "复制失败: " + output}
+        };
+
+        return result.dump();
+    }
+    catch (const std::exception &e)
+    {
+        json error = {{"success", false}, {"error", e.what()}};
+        return error.dump();
+    }
+}
+
 // 清理函数
 void cleanup_on_exit()
 {
@@ -1349,8 +1535,8 @@ int main()
     w.bind("execAdbCommand", exec_adb_command);
     w.bind("connectDevice", connect_device);
     w.bind("captureScreen", capture_screen);
-    w.bind("chooseDirectory", choose_directory);
     w.bind("startLogcat", start_logcat);
+    w.bind("openFolder", open_folder);
     w.bind("stopLogcat", stop_logcat);
     w.bind("getLogcatLines", get_logcat_lines);
     w.bind("startRecording", start_recording);
@@ -1361,6 +1547,7 @@ int main()
     w.bind("getInstalledApps", get_installed_apps);
     w.bind("getPackagePid", get_package_pid);
     w.bind("listDeviceFiles", list_device_files);
+    w.bind("copyFileToClipboard", copy_file_to_clipboard);
 
     std::cout << "[DEBUG] API bindings registered" << std::endl;
 

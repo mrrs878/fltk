@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-04 15:18:13
+ * @LastEditTime: 2026-02-06 16:56:29
  */
 
 import { createStore } from "solid-js/store";
@@ -486,7 +486,6 @@ const LogcatView = () => {
                 const pids = result.data.pid.split(/\s+/).filter(p => p);
                 setFilterPids(pids);
                 console.log('[Logcat] Filtering by PIDs:', pids);
-                showSuccess(`已应用过滤: ${packageName} (PID: ${pids.join(', ')})`);
             } else {
                 setFilterPids([]);
                 showWarning(`应用未运行: ${packageName}`);
@@ -946,6 +945,7 @@ const QuickActions = () => {
             if (result.success) {
                 setState("isRecording", true);
                 setState("recordingStartTime", Date.now());
+                startRecordingTimer(); // 启动计时器
                 showSuccess("录屏已开始（最长3分钟）");
             } else {
                 showError(result.error || "启动录屏失败");
@@ -967,6 +967,8 @@ const QuickActions = () => {
         setState("currentCommand", "adb pull recording.mp4");
 
         try {
+            stopRecordingTimer();
+
             const savePath = getSavePath();
             const result = await AdbApi.stopRecording(state.selectedDevice, savePath);
             
@@ -975,7 +977,6 @@ const QuickActions = () => {
             
             if (result.success && result.data) {
                 showSuccess("录屏已保存");
-                // 显示预览对话框
                 setState("previewVideo", "file://" + result.data.path);
             } else {
                 showError(result.error || "停止录屏失败");
@@ -991,21 +992,34 @@ const QuickActions = () => {
     const [recordingTime, setRecordingTime] = createSignal("00:00");
     let recordingTimer: number | undefined;
     
-    onMount(() => {
-        recordingTimer = window.setInterval(() => {
-            if (state.isRecording && state.recordingStartTime) {
+    const startRecordingTimer = () => {
+        if (recordingTimer) {
+            clearTimeout(recordingTimer);
+        }
+        
+        const updateTimer = () => {
+            if (state.recordingStartTime) {
                 const elapsed = Math.floor((Date.now() - state.recordingStartTime) / 1000);
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
                 setRecordingTime(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+                
+                recordingTimer = window.setTimeout(updateTimer, 1000);
             }
-        }, 1000);
-    });
-
-    onCleanup(() => {
+        };
+        
+        updateTimer();
+    };
+    
+    const stopRecordingTimer = () => {
         if (recordingTimer) {
-            clearInterval(recordingTimer);
+            clearTimeout(recordingTimer);
+            recordingTimer = undefined;
         }
+    };
+    
+    onCleanup(() => {
+        stopRecordingTimer();
     });
 
     const installApp = () => {
@@ -1014,14 +1028,6 @@ const QuickActions = () => {
 
     const uninstallApp = () => {
         showInfo("卸载应用功能即将推出");
-    };
-
-    const clearAppData = () => {
-        showInfo("清除数据功能即将推出");
-    };
-
-    const forceStopApp = () => {
-        showInfo("强制停止功能即将推出");
     };
 
     return (
@@ -1458,7 +1464,7 @@ const Settings = () => {
             </div>
             
             <div class="settings-section">
-                <h4>截图设置</h4>
+                <h4>截图/录屏设置</h4>
                 <div class="form-group">
                     <label>默认保存位置:</label>
                     <div style="display: flex; gap: 10px; align-items: center;">
@@ -1525,18 +1531,59 @@ const App = () => {
         setState("previewImage", null);
     };
     
-    const openVideoFolder = () => {
+    const openVideoFolder = async () => {
         if (!state.previewVideo) return;
         
-        const filePath = state.previewVideo.replace("file://", "");
-        const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+        try {
+            const res = await AdbApi.openFolder(state.previewVideo);
+            if (!res.success) {
+                showError(res.error || '打开文件夹失败');
+            }
+        } catch (e) {
+            showError('打开文件夹失败: ' + String(e));
+        }
+    };
+
+    const openImageFolder = async () => {
+        if (!state.previewImage) return;
         
-        if (navigator.platform.toLowerCase().includes('mac')) {
-            AdbApi.execCommand(`open "${folderPath}"`);
-        } else if (navigator.platform.toLowerCase().includes('win')) {
-            AdbApi.execCommand(`explorer "${folderPath}"`);
-        } else {
-            showError(`Unsupported platform for opening folder: ${navigator.platform}`);
+        try {
+            const res = await AdbApi.openFolder(state.previewImage);
+            if (!res.success) {
+                showError(res.error || '打开文件夹失败');
+            }
+        } catch (e) {
+            showError('打开文件夹失败: ' + String(e));
+        }
+    };
+    
+    const copyImageToClipboard = async () => {
+        if (!state.previewImage) return;
+        
+        try {
+            const result = await AdbApi.copyFileToClipboard(state.previewImage);
+            if (result.success) {
+                showSuccess('图片已复制到剪切板');
+            } else {
+                showError(result.error || '复制失败');
+            }
+        } catch (error) {
+            showError('复制失败: ' + String(error));
+        }
+    };
+    
+    const copyVideoToClipboard = async () => {
+        if (!state.previewVideo) return;
+        
+        try {
+            const result = await AdbApi.copyFileToClipboard(state.previewVideo);
+            if (result.success) {
+                showSuccess('视频已复制到剪切板');
+            } else {
+                showError(result.error || '复制失败');
+            }
+        } catch (error) {
+            showError('复制失败: ' + String(error));
         }
     };
     
@@ -1571,6 +1618,13 @@ const App = () => {
                             <img src={state.previewImage!} alt="截图预览" />
                         </div>
                         <div class="dialog-footer">
+                            <button title="复制到剪切板" onClick={copyImageToClipboard} class="btn-secondary">
+                                复制
+                            </button>
+                            <button title="打开文件夹" onClick={openImageFolder} class="btn-secondary">
+                                打开文件夹
+                            </button>
+                            <div class="full" />
                             <button onClick={closePreview} class="btn-primary">
                                 关闭
                             </button>
@@ -1587,12 +1641,16 @@ const App = () => {
                             <button class="dialog-close" onClick={() => setState("previewVideo", null)}>×</button>
                         </div>
                         <div class="preview-content">
-                            <video src={state.previewVideo!} controls autoplay style="max-width: 100%; max-height: 70vh;" />
+                            <video src={state.previewVideo!} controls style="max-width: 100%; max-height: 60vh;" />
                         </div>
                         <div class="dialog-footer">
-                            <button onClick={openVideoFolder} class="btn-secondary" style="margin-right: 10px;">
+                            <button title="复制到剪切板" onClick={copyVideoToClipboard} class="btn-secondary">
+                                复制
+                            </button>
+                            <button title="打开文件夹" onClick={openVideoFolder} class="btn-secondary">
                                 打开文件夹
                             </button>
+                            <div class="full" />
                             <button onClick={() => setState("previewVideo", null)} class="btn-primary">
                                 关闭
                             </button>
