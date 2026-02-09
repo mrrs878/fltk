@@ -162,8 +162,8 @@ std::string exec_command(const std::string &cmd)
     PROCESS_INFORMATION pi;
     ZeroMemory(&pi, sizeof(pi));
 
-    // 使用 cmd /c 来执行命令
-    std::string cmdLine = "cmd.exe /c " + cmd;
+    // 使用 cmd /c 并设置 UTF-8 编码
+    std::string cmdLine = "cmd.exe /c chcp 65001 >nul && " + cmd;
     
     if (!CreateProcessA(NULL, const_cast<char*>(cmdLine.c_str()), NULL, NULL, TRUE, 
                         CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
