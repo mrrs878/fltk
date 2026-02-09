@@ -5,7 +5,6 @@ dist/
 tmp/
 
 # Executables
-*.exe
 *.out
 hello_fltk
 hello_fltk.exe
