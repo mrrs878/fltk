@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-05 19:53:26
+ * @LastEditTime: 2026-02-09 19:40:16
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -1343,7 +1343,7 @@ std::string choose_directory(const std::string &req)
             return response.dump();
         }
 #elif defined(_WIN32)
-        std::string cmd = "powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = '选择截图保存位置'; $dialog.SelectedPath = '" + default_path + "'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.SelectedPath }\"";
+        std::string cmd = "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = '选择保存位置'; $dialog.SelectedPath = '" + default_path + "'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.SelectedPath }\"";
         std::string result = exec_command(cmd);
 
         result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());
@@ -1392,7 +1392,7 @@ std::string choose_file(const std::string &req)
         }
 #elif defined(_WIN32)
         // Windows使用PowerShell打开文件选择对话框
-        std::string cmd = "powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Title = '选择要推送的文件'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.FileName }\"";
+        std::string cmd = "powershell -NoProfile -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Title = '选择要推送的文件'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.FileName }\"";
         std::string result = exec_command(cmd);
 
         result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());
@@ -1709,6 +1709,7 @@ int main()
     w.bind("startRecording", start_recording);
     w.bind("stopRecording", stop_recording);
     w.bind("chooseFile", choose_file);
+    w.bind("chooseDirectory", choose_directory);
     w.bind("pushFile", push_file);
     w.bind("pullFile", pull_file);
     w.bind("getInstalledApps", get_installed_apps);

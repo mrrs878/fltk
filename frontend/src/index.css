@@ -551,6 +551,105 @@ main::-webkit-scrollbar-thumb:hover {
     margin-bottom: 16px;
 }
 
+/* 设备引导界面 */
+.device-guide {
+    grid-column: 1 / -1;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    border: 2px dashed #e0e0e0;
+}
+
+.device-guide .guide-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+}
+
+.device-guide h3 {
+    margin: 0 0 32px 0;
+    color: #666;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.guide-steps {
+    max-width: 700px;
+    margin: 0 auto 32px;
+    text-align: left;
+}
+
+.guide-step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    align-items: flex-start;
+}
+
+.guide-step:last-child {
+    margin-bottom: 0;
+}
+
+.step-number {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: #007aff;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.step-content {
+    flex: 1;
+}
+
+.step-content strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #333;
+    font-size: 14px;
+}
+
+.step-content p {
+    margin: 0;
+    color: #666;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.guide-options {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.guide-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #666;
+}
+
+.option-icon {
+    font-size: 18px;
+}
+
+.guide-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
 .wireless-connect .ip-label {
     display: flex;
     justify-content: space-between;
@@ -656,7 +755,10 @@ main::-webkit-scrollbar-thumb:hover {
 
 .device-management,
 .logcat-view,
-.quick-actions {
+.quick-actions,
+.file-management,
+.settings
+ {
     animation: fadeIn 0.2s ease;
 }
 
@@ -952,14 +1054,6 @@ main::-webkit-scrollbar-thumb:hover {
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* 设置页面 */
-.settings {
-    padding: 20px;
-    height: 100%;
-    overflow-y: auto;
-    box-sizing: border-box;
-}
-
 .settings-section {
     background: white;
     border: 1px solid #e0e0e0;
@@ -1018,14 +1112,6 @@ main::-webkit-scrollbar-thumb:hover {
     display: flex;
     justify-content: flex-end;
     padding-top: 10px;
-}
-
-/* 文件管理页面 */
-.file-management {
-    padding: 20px;
-    height: 100%;
-    overflow-y: auto;
-    box-sizing: border-box;
 }
 
 .file-section {

@@ -2,11 +2,11 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-09 19:05:03
+ * @LastEditTime: 2026-02-09 19:21:45
  */
 
 import { createStore } from "solid-js/store";
-import { createSignal, onMount, onCleanup, For, Show } from "solid-js";
+import { createSignal, onMount, onCleanup, For, Show, createEffect } from "solid-js";
 import { render } from "solid-js/web";
 import { AdbApi, type Device } from "./api";
 import { ConfigManager } from "./config";
@@ -154,10 +154,18 @@ const DeviceManagement = () => {
     let previousDeviceCount = 0;
     let isActive = true;
     let isRefreshing = false; // 防止并发刷新
+    let ipInputRef: HTMLInputElement | undefined;
     const [connectIP, setConnectIP] = createSignal("");
     const [connectPort, setConnectPort] = createSignal("5555");
     const [showConnectDialog, setShowConnectDialog] = createSignal(false);
     const [showConnectHelpDialog, setShowConnectHelpDialog] = createSignal(false);
+
+    // 当对话框打开时自动聚焦输入框
+    createEffect(() => {
+        if (showConnectDialog() && ipInputRef) {
+            setTimeout(() => ipInputRef?.focus(), 100);
+        }
+    });
 
     const refreshDevices = async (showStatus = false) => {
         if (!isActive || isRefreshing) return;
@@ -287,9 +295,23 @@ const DeviceManagement = () => {
                 setTimeout(() => refreshDevices(false), 500);
             } else {
                 showError(result.error || "连接失败");
+                // 连接失败，从 adb 服务器中移除该设备记录
+                try {
+                    await AdbApi.disconnectDevice(address);
+                    setTimeout(() => refreshDevices(false), 300);
+                } catch (e) {
+                    console.error('Failed to disconnect after connect failure:', e);
+                }
             }
         } catch (error) {
             showError("连接失败: " + String(error));
+            // 连接失败，从 adb 服务器中移除该设备记录
+            try {
+                await AdbApi.disconnectDevice(address);
+                setTimeout(() => refreshDevices(false), 300);
+            } catch (e) {
+                console.error('Failed to disconnect after connect failure:', e);
+            }
         } finally {
             setState("isLoading", false);
             setState("currentCommand", "");
@@ -407,6 +429,7 @@ const DeviceManagement = () => {
                                     <button class="btn-link ip-help" data-tooltip="设置 - 关于手机 - IP地址">如何查看</button>
                                 </label>
                                 <input
+                                    ref={ipInputRef}
                                     type="text"
                                     placeholder="例如: 192.168.1.100"
                                     value={connectIP()}
@@ -416,7 +439,6 @@ const DeviceManagement = () => {
                                             connectWirelessDevice();
                                         }
                                     }}
-                                    autofocus
                                 />
                             </div>
                             <div class="form-group">
@@ -474,6 +496,59 @@ const DeviceManagement = () => {
             </Show>
 
             <div class="device-list">
+                <Show when={state.devices.length === 0}>
+                    <div class="device-guide">
+                        <div class="guide-icon">📱</div>
+                        <h3>还没有连接的设备</h3>
+                        <div class="guide-steps">
+                            <div class="guide-step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <strong>启用开发者模式</strong>
+                                    <p>设置 → 关于手机 → 版本号（连续点击7次）</p>
+                                </div>
+                            </div>
+                            <div class="guide-step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <strong>开启 USB 调试</strong>
+                                    <p>设置 → 系统 → 开发者选项 → USB 调试（打开）</p>
+                                </div>
+                            </div>
+                            <div class="guide-step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <strong>USB 连接或无线连接</strong>
+                                    <div class="guide-options">
+                                        <div class="guide-option">
+                                            <span class="option-icon">🔌</span>
+                                            <span>使用数据线连接电脑</span>
+                                        </div>
+                                        <div class="guide-option">
+                                            <span class="option-icon">📡</span>
+                                            <span>点击上方"无线连接"按钮</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="guide-step">
+                                <div class="step-number">4</div>
+                                <div class="step-content">
+                                    <strong>授权调试</strong>
+                                    <p>手机上弹出提示时，勾选"一律允许"并点击确定</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="guide-actions">
+                            <button onClick={() => refreshDevices(true)} class="btn-primary">
+                                🔄 刷新设备列表
+                            </button>
+                            <button onClick={openConnectDialog} class="btn-secondary">
+                                📡 无线连接
+                            </button>
+                        </div>
+                    </div>
+                </Show>
                 <For each={state.devices}>
                     {(device) => (
                         <div
