@@ -48,6 +48,34 @@ using json = nlohmann::json;
 #define log_info(msg) std::cout << "[INFO] " << msg << std::endl;
 #define log_error(msg) std::cout << "[ERROR] " << msg << std::endl;
 
+#ifdef _WIN32
+// Windows: 将 GBK/ANSI 编码转换为 UTF-8
+std::string convert_to_utf8(const std::string& str)
+{
+    if (str.empty()) return str;
+    
+    // 先转换为宽字符 (UTF-16)
+    int wlen = MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
+    if (wlen <= 0) return str;
+    
+    std::wstring wstr(wlen, 0);
+    MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, &wstr[0], wlen);
+    
+    // 再转换为 UTF-8
+    int utf8len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+    if (utf8len <= 0) return str;
+    
+    std::string utf8str(utf8len, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &utf8str[0], utf8len, NULL, NULL);
+    
+    // 移除末尾的 null 字符
+    if (!utf8str.empty() && utf8str.back() == '\0') {
+        utf8str.pop_back();
+    }
+    
+    return utf8str;
+}
+#endif
 
 std::string folder_path(const std::string& url)
 {
@@ -190,7 +218,8 @@ std::string exec_command(const std::string &cmd)
     CloseHandle(pi.hThread);
     CloseHandle(hReadPipe);
 
-    return result;
+    // 将 GBK 编码转换为 UTF-8
+    return convert_to_utf8(result);
 #else
     // Unix/Linux/macOS: 使用 popen
     std::array<char, 128> buffer;
