@@ -136,6 +136,63 @@ std::string get_desktop_path()
 
 std::string exec_command(const std::string &cmd)
 {
+#ifdef _WIN32
+    // Windows: 使用 CreateProcess API 以获得更好的性能
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.bInheritHandle = TRUE;
+    sa.lpSecurityDescriptor = NULL;
+
+    HANDLE hReadPipe, hWritePipe;
+    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
+    {
+        return R"({"error": "Failed to create pipe"})";
+    }
+
+    SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOA si;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+    si.hStdOutput = hWritePipe;
+    si.hStdError = hWritePipe;
+    si.wShowWindow = SW_HIDE;
+
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(pi));
+
+    // 使用 cmd /c 来执行命令
+    std::string cmdLine = "cmd.exe /c " + cmd;
+    
+    if (!CreateProcessA(NULL, const_cast<char*>(cmdLine.c_str()), NULL, NULL, TRUE, 
+                        CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+    {
+        CloseHandle(hWritePipe);
+        CloseHandle(hReadPipe);
+        return R"({"error": "Failed to create process"})";
+    }
+
+    CloseHandle(hWritePipe);
+
+    std::string result;
+    char buffer[4096];
+    DWORD bytesRead;
+
+    while (ReadFile(hReadPipe, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0)
+    {
+        buffer[bytesRead] = '\0';
+        result += buffer;
+    }
+
+    WaitForSingleObject(pi.hProcess, 5000); // 5秒超时
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(hReadPipe);
+
+    return result;
+#else
+    // Unix/Linux/macOS: 使用 popen
     std::array<char, 128> buffer;
     std::string result;
     
@@ -152,6 +209,7 @@ std::string exec_command(const std::string &cmd)
     }
 
     return result;
+#endif
 }
 
 std::string get_adb_path()
