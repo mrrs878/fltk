@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-06 19:50:51
+ * @LastEditTime: 2026-02-09 19:05:03
  */
 
 import { createStore } from "solid-js/store";
@@ -186,6 +186,19 @@ const DeviceManagement = () => {
                 }));
                 
                 setState("devices", devices);
+                
+                devices.forEach(async (device) => {
+                    if (device.status === "在线" && !device.id.includes(':')) {
+                        try {
+                            const result = await AdbApi.enableWirelessAdb(device.id);
+                            if (result.success && result.data?.ip) {
+                                console.log(`[Auto] Enabled wireless for ${device.id}, IP: ${result.data.ip}`);
+                            }
+                        } catch (error) {
+                            console.error('[Auto] Failed to enable wireless:', error);
+                        }
+                    }
+                });
                 
                 // 如果当前选中的设备不在列表中，清除选择
                 if (state.selectedDevice && !devices.find(d => d.id === state.selectedDevice)) {

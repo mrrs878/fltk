@@ -490,6 +490,87 @@ std::string connect_device(const std::string &req)
     }
 }
 
+std::string enable_wireless_adb(const std::string &req)
+{
+    try
+    {
+        auto j = json::parse(req);
+
+        // 处理webview的数组格式
+        if (j.is_array() && !j.empty() && j[0].is_string())
+        {
+            std::string nested_str = j[0].get<std::string>();
+            j = json::parse(nested_str);
+        }
+
+        std::string device_id = "";
+        if (j.is_object() && j.contains("deviceId"))
+        {
+            device_id = j["deviceId"].get<std::string>();
+        }
+
+        if (device_id.empty())
+        {
+            json error = {{"success", false}, {"error", "Device ID is empty"}};
+            return error.dump();
+        }
+
+        std::string adb_path = get_adb_path();
+        
+        // 1. 启用 TCP/IP 模式，端口 5555
+        std::string tcpip_cmd = "\"" + adb_path + "\" -s " + device_id + " tcpip 5555";
+        std::string tcpip_output = exec_command(tcpip_cmd);
+        
+        if (tcpip_output.find("restarting") == std::string::npos && 
+            tcpip_output.find("5555") == std::string::npos)
+        {
+            json error = {
+                {"success", false}, 
+                {"error", "Failed to enable wireless mode: " + tcpip_output}
+            };
+            return error.dump();
+        }
+        
+        // 2. 获取设备 IP 地址
+        std::string ip_cmd = "\"" + adb_path + "\" -s " + device_id + " shell ip -f inet addr show wlan0";
+        std::string ip_output = exec_command(ip_cmd);
+        
+        // 解析 IP 地址 (格式: inet 192.168.1.100/24 ...)
+        std::string ip_address = "";
+        size_t inet_pos = ip_output.find("inet ");
+        if (inet_pos != std::string::npos)
+        {
+            size_t start = inet_pos + 5;
+            size_t end = ip_output.find('/', start);
+            if (end != std::string::npos)
+            {
+                ip_address = ip_output.substr(start, end - start);
+                // 去除空格
+                ip_address.erase(0, ip_address.find_first_not_of(" \t\r\n"));
+                ip_address.erase(ip_address.find_last_not_of(" \t\r\n") + 1);
+            }
+        }
+        
+        json result = {
+            {"success", true},
+            {"message", "Wireless debugging enabled on port 5555"},
+            {"ip", ip_address},
+            {"port", "5555"}
+        };
+        
+        return result.dump();
+    }
+    catch (const std::exception &e)
+    {
+        log_error(std::string("[enable_wireless_adb] Exception: ") + e.what());
+        json error = {
+            {"success", false},
+            {"error", std::string("Exception: ") + e.what()}
+        };
+        return error.dump();
+    }
+}
+
 std::string capture_screen(const std::string &req)
 {
     try
@@ -1634,6 +1715,7 @@ int main()
     w.bind("getPackagePid", get_package_pid);
     w.bind("listDeviceFiles", list_device_files);
     w.bind("copyFileToClipboard", copy_file_to_clipboard);
+    w.bind("enableWirelessAdb", enable_wireless_adb);
 
     std::cout << "[DEBUG] API bindings registered" << std::endl;
 

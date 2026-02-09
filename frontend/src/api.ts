@@ -28,6 +28,7 @@ declare global {
         listDeviceFiles: (params: string) => Promise<string>;
         copyFileToClipboard: (params: string) => Promise<string>;
         openFolder: (params: string) => Promise<string>;
+        enableWirelessAdb: (params: string) => Promise<string>;
     }
 }
 
@@ -371,6 +372,19 @@ export class AdbApi {
             const data = this.parseResult(result);
             return data.success
                 ? { success: true, message: data.message }
+                : { success: false, error: data.error };
+        } catch (error) {
+            return { success: false, error: String(error) };
+        }
+    }
+
+    static async enableWirelessAdb(deviceId: string): Promise<ApiResponse<{ ip: string; port: string }>> {
+        try {
+            const params = JSON.stringify({ deviceId });
+            const result = await window.enableWirelessAdb(params);
+            const data = this.parseResult(result);
+            return data.success
+                ? { success: true, data: { ip: data.ip, port: data.port }, message: data.message }
                 : { success: false, error: data.error };
         } catch (error) {
             return { success: false, error: String(error) };
