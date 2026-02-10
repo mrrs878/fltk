@@ -626,10 +626,10 @@ main::-webkit-scrollbar-thumb:hover {
     display: flex;
     gap: 12px;
     margin-top: 8px;
+    align-items: center;
 }
 
 .guide-option {
-    flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;

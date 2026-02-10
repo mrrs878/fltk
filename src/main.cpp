@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-09 19:40:16
+ * @LastEditTime: 2026-02-10 10:27:22
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -1691,7 +1691,7 @@ int main()
     }
 
     w.set_title("QuickADB");
-    w.set_size(900, 600, WEBVIEW_HINT_NONE);
+    w.set_size(1200, 800, WEBVIEW_HINT_NONE);
 
     std::string exe_dir = get_exe_dir();
     std::string html_path = "file://" + exe_dir + PATH_SEP + "frontend" + PATH_SEP + "index.html";

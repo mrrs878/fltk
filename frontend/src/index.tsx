@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-09 19:21:45
+ * @LastEditTime: 2026-02-10 10:41:22
  */
 
 import { createStore } from "solid-js/store";
@@ -457,7 +457,7 @@ const DeviceManagement = () => {
                             </div>
                         </div>
                         <div class="dialog-footer">
-                            <button onClick={openConnectHelpDialog} class="btn-secondary">
+                            <button hidden onClick={openConnectHelpDialog} class="btn-secondary">
                                 连接失败❓
                             </button>
                             <div class="flex-1" />
@@ -522,8 +522,9 @@ const DeviceManagement = () => {
                                     <div class="guide-options">
                                         <div class="guide-option">
                                             <span class="option-icon">🔌</span>
-                                            <span>使用数据线连接电脑</span>
+                                            <span>使用数据线连接电脑(第一次使用)</span>
                                         </div>
+                                        <div>或</div>
                                         <div class="guide-option">
                                             <span class="option-icon">📡</span>
                                             <span>点击上方"无线连接"按钮</span>
