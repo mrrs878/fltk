@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-10 10:27:22
+ * @LastEditTime: 2026-02-12 10:23:56
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -1779,6 +1779,18 @@ int main()
     std::cout << "[DEBUG] API bindings registered" << std::endl;
 
     w.navigate(html_path.c_str());
+    
+#ifdef _WIN32
+    // Windows: 导航后最大化窗口
+    std::thread([&w]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        HWND hwnd = GetForegroundWindow();
+        if (hwnd) {
+            ShowWindow(hwnd, SW_MAXIMIZE);
+        }
+    }).detach();
+#endif
+    
     w.run();
     
     // webview 退出后也会触发清理
