@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-12 10:23:56
+ * @LastEditTime: 2026-02-12 13:31:43
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -1783,10 +1783,13 @@ int main()
 #ifdef _WIN32
     // Windows: 导航后最大化窗口
     std::thread([&w]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        HWND hwnd = GetForegroundWindow();
-        if (hwnd) {
-            ShowWindow(hwnd, SW_MAXIMIZE);
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        auto window_handle = w.window();
+        if (window_handle.ok()) {
+            HWND hwnd = static_cast<HWND>(window_handle.inner());
+            if (hwnd && IsWindow(hwnd)) {
+                ShowWindow(hwnd, SW_MAXIMIZE);
+            }
         }
     }).detach();
 #endif

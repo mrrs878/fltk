@@ -2,12 +2,12 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-10 10:41:22
+ * @LastEditTime: 2026-02-12 13:32:14
  */
 
 import { createStore } from "solid-js/store";
 import { createSignal, onMount, onCleanup, For, Show, createEffect } from "solid-js";
-import { render, Dynamic } from "solid-js/web";
+import { render } from "solid-js/web";
 import { AdbApi, type Device } from "./api";
 import { ConfigManager } from "./config";
 
@@ -48,6 +48,7 @@ const [state, setState] = createStore({
     toasts: [] as Toast[],
     currentCommand: "",
     isLoading: false,
+    isInitializing: true,
     previewImage: null as string | null,
     previewVideo: null as string | null,
 });
@@ -231,6 +232,9 @@ const DeviceManagement = () => {
             showError("获取设备列表失败: " + String(error));
         } finally {
             isRefreshing = false;
+            if (state.isInitializing) {
+                setState("isInitializing", false);
+            }
             if (isActive && showStatus) {
                 setState("isLoading", false);
                 setState("currentCommand", "");
@@ -1668,6 +1672,19 @@ const Settings = () => {
 const App = () => {
     const [activeTab, setActiveTab] = createSignal<Tab>("device-management");
 
+    onMount(async () => {
+        try {
+            const result = await AdbApi.getDevices();
+            if (result.success) {
+                setState("isInitializing", false);
+            } else {
+                setState("isInitializing", false);
+            }
+        } catch (error) {
+            setState("isInitializing", false);
+        }
+    });
+
     const handleTabChange = (tab: Tab) => {
         setActiveTab(tab);
     };
@@ -1732,19 +1749,34 @@ const App = () => {
         }
     };
     
-    const tabComponents = {
-        'device-management': DeviceManagement,
-        'logcat': LogcatView,
-        'quick-actions': QuickActions,
-        'file-management': FileManagement,
-        'settings': Settings,
-    };
-    
     return (
         <>
-            <Layout activeTab={activeTab()} setActiveTab={handleTabChange}>
-                <Dynamic component={tabComponents[activeTab()]} />
-            </Layout>
+            <Show when={state.isInitializing}>
+                <div class="loading-screen">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">正在初始化 ADB...</div>
+                </div>
+            </Show>
+            
+            <Show when={!state.isInitializing}>
+                <Layout activeTab={activeTab()} setActiveTab={handleTabChange}>
+                    <div style={{ display: activeTab() === 'device-management' ? 'block' : 'none' }}>
+                        <DeviceManagement />
+                    </div>
+                    <div style={{ display: activeTab() === 'logcat' ? 'block' : 'none' }}>
+                        <LogcatView />
+                    </div>
+                    <div style={{ display: activeTab() === 'quick-actions' ? 'block' : 'none' }}>
+                        <QuickActions />
+                    </div>
+                    <div style={{ display: activeTab() === 'file-management' ? 'block' : 'none' }}>
+                        <FileManagement />
+                    </div>
+                    <div style={{ display: activeTab() === 'settings' ? 'block' : 'none' }}>
+                        <Settings />
+                    </div>
+                </Layout>
+            </Show>
             
             <Show when={state.previewImage}>
                 <div class="dialog-overlay" onClick={closePreview}>
