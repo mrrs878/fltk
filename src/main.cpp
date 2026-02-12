@@ -1785,7 +1785,8 @@ int main()
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         auto window_handle = w.window();
         if (window_handle.ok()) {
-            HWND hwnd = static_cast<HWND>(*window_handle);
+            // 使用 value() 方法获取窗口句柄
+            HWND hwnd = static_cast<HWND>(window_handle.value());
             if (hwnd && IsWindow(hwnd)) {
                 ShowWindow(hwnd, SW_MAXIMIZE);
             }
