@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-22 10:05:13
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-12 13:31:43
+ * @LastEditTime: 2026-02-12 14:42:31
  */
 
 // 必须在所有 include 之前定义，避免 Windows.h 定义 min/max 宏
@@ -1781,12 +1781,11 @@ int main()
     w.navigate(html_path.c_str());
     
 #ifdef _WIN32
-    // Windows: 导航后最大化窗口
     std::thread([&w]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         auto window_handle = w.window();
         if (window_handle.ok()) {
-            HWND hwnd = static_cast<HWND>(window_handle.inner());
+            HWND hwnd = static_cast<HWND>(*window_handle);
             if (hwnd && IsWindow(hwnd)) {
                 ShowWindow(hwnd, SW_MAXIMIZE);
             }
