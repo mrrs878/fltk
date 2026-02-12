@@ -658,6 +658,11 @@ static FILE *recording_pipe = nullptr;
 static std::thread recording_thread;
 static bool recording_running = false;
 
+#ifdef _WIN32
+static PROCESS_INFORMATION recording_pi;
+static HANDLE recording_hReadPipe = NULL;
+#endif
+
 std::string start_recording(const std::string &req)
 {
     try
@@ -695,9 +700,60 @@ std::string start_recording(const std::string &req)
 
         recording_running = true;
 
-        // 在新线程中运行录屏命令，以避免阻塞主线程
+#ifdef _WIN32
+        // Windows: 使用 CreateProcess 避免弹出命令行窗口
         recording_thread = std::thread([cmd]()
-                                       {
+        {
+            SECURITY_ATTRIBUTES sa;
+            sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+            sa.bInheritHandle = TRUE;
+            sa.lpSecurityDescriptor = NULL;
+
+            HANDLE hWritePipe;
+            if (!CreatePipe(&recording_hReadPipe, &hWritePipe, &sa, 0))
+            {
+                recording_running = false;
+                return;
+            }
+
+            SetHandleInformation(recording_hReadPipe, HANDLE_FLAG_INHERIT, 0);
+
+            STARTUPINFOA si;
+            ZeroMemory(&si, sizeof(si));
+            si.cb = sizeof(si);
+            si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+            si.hStdOutput = hWritePipe;
+            si.hStdError = hWritePipe;
+            si.wShowWindow = SW_HIDE;
+
+            ZeroMemory(&recording_pi, sizeof(recording_pi));
+
+            std::string cmdLine = "cmd.exe /c " + cmd;
+            
+            if (!CreateProcessA(NULL, const_cast<char*>(cmdLine.c_str()), NULL, NULL, TRUE, 
+                                CREATE_NO_WINDOW, NULL, NULL, &si, &recording_pi))
+            {
+                CloseHandle(hWritePipe);
+                CloseHandle(recording_hReadPipe);
+                recording_running = false;
+                return;
+            }
+
+            CloseHandle(hWritePipe);
+
+            // 等待录屏完成
+            WaitForSingleObject(recording_pi.hProcess, INFINITE);
+            
+            CloseHandle(recording_hReadPipe);
+            CloseHandle(recording_pi.hProcess);
+            CloseHandle(recording_pi.hThread);
+            recording_hReadPipe = NULL;
+            recording_running = false;
+        });
+#else
+        // macOS/Linux: 使用 popen
+        recording_thread = std::thread([cmd]()
+        {
             recording_pipe = popen(cmd.c_str(), "r");
             if (!recording_pipe)
             {
@@ -708,7 +764,9 @@ std::string start_recording(const std::string &req)
             // 等待录屏完成
             pclose(recording_pipe);
             recording_pipe = nullptr;
-            recording_running = false; });
+            recording_running = false;
+        });
+#endif
 
         recording_thread.detach();
 
