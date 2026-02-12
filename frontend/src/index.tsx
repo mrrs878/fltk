@@ -7,7 +7,7 @@
 
 import { createStore } from "solid-js/store";
 import { createSignal, onMount, onCleanup, For, Show, createEffect } from "solid-js";
-import { render } from "solid-js/web";
+import { render, Dynamic } from "solid-js/web";
 import { AdbApi, type Device } from "./api";
 import { ConfigManager } from "./config";
 
@@ -1732,24 +1732,18 @@ const App = () => {
         }
     };
     
+    const tabComponents = {
+        'device-management': DeviceManagement,
+        'logcat': LogcatView,
+        'quick-actions': QuickActions,
+        'file-management': FileManagement,
+        'settings': Settings,
+    };
+    
     return (
         <>
             <Layout activeTab={activeTab()} setActiveTab={handleTabChange}>
-                <Show when={activeTab() === 'device-management'}>
-                    <DeviceManagement />
-                </Show>
-                <Show when={activeTab() === 'logcat'}>
-                    <LogcatView />
-                </Show>
-                <Show when={activeTab() === 'quick-actions'}>
-                    <QuickActions />
-                </Show>
-                <Show when={activeTab() === 'file-management'}>
-                    <FileManagement />
-                </Show>
-                <Show when={activeTab() === 'settings'}>
-                    <Settings />
-                </Show>
+                <Dynamic component={tabComponents[activeTab()]} />
             </Layout>
             
             <Show when={state.previewImage}>
