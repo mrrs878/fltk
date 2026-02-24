@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-12 13:32:14
+ * @LastEditTime: 2026-02-25 19:57:10
  */
 
 import { createStore } from "solid-js/store";
@@ -595,10 +595,26 @@ const LogcatView = () => {
     const [installedApps, setInstalledApps] = createSignal<Array<{packageName: string, displayName: string}>>([]);
     const [showPackageSuggestions, setShowPackageSuggestions] = createSignal(false);
     const [filterPids, setFilterPids] = createSignal<string[]>([]); // 当前过滤的PID列表
+    const [autoScroll, setAutoScroll] = createSignal(true); // 自动滚动开关
     
-    // 滚动到底部
+    const isScrolledToBottom = () => {
+        if (!logOutputRef) return false;
+        const threshold = 10;
+        return logOutputRef.scrollHeight - logOutputRef.scrollTop - logOutputRef.clientHeight < threshold;
+    };
+    
+    const handleScroll = () => {
+        if (!logOutputRef) return;
+        
+        if (isScrolledToBottom()) {
+            setAutoScroll(true);
+        } else {
+            setAutoScroll(false);
+        }
+    };
+    
     const scrollToBottom = () => {
-        if (logOutputRef) {
+        if (logOutputRef && autoScroll()) {
             logOutputRef.scrollTop = logOutputRef.scrollHeight;
         }
     };
@@ -609,10 +625,8 @@ const LogcatView = () => {
     ) => {
         setState("logFilter", { [field]: value });
         
-        // 当输入包名时，只显示建议
         if (field === "packageName") {
             setShowPackageSuggestions(value.length > 0 && installedApps().length > 0);
-            // 清空之前的PID过滤
             if (!value) {
                 setFilterPids([]);
             }
@@ -813,7 +827,7 @@ const LogcatView = () => {
     };
 
     const parseLogLine = (line: string): any | null => {
-        const timeRegex = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+([VDIWEF])\/(.+?)\(\s*(\d+)\):\s*(.+)$/;
+        const timeRegex = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+([VDIWEF])\/(.+?)\(\s*(\d+)\): ?(.*)$/;
         const match = line.match(timeRegex);
         
         if (!match) {
@@ -834,7 +848,7 @@ const LogcatView = () => {
             level: levelMap[levelChar] || 'Info',
             tag: tag.trim(),
             packageName: tag.trim(), // 添加包名字段，与tag相同
-            message: message,
+            message: message, // 保留原始消息，包括前导空格
             pid: pid
         };
     };
@@ -1007,7 +1021,7 @@ const LogcatView = () => {
                 </div>
             </div>
 
-            <div class="log-output" ref={logOutputRef}>
+            <div class="log-output" ref={logOutputRef} onScroll={handleScroll}>
                 <Show when={filteredLogs().length === 0 && !state.isLogging}>
                     <div class="log-empty">
                         {state.logs.length === 0 ? "点击 \"开始记录\" 查看设备日志" : "没有符合过滤条件的日志"}
@@ -1763,7 +1777,7 @@ const App = () => {
                     <div style={{ display: activeTab() === 'device-management' ? 'block' : 'none' }}>
                         <DeviceManagement />
                     </div>
-                    <div style={{ display: activeTab() === 'logcat' ? 'block' : 'none' }}>
+                    <div style={{ display: activeTab() === 'logcat' ? 'block' : 'none', overflow: 'auto', height: '100%' }}>
                         <LogcatView />
                     </div>
                     <div style={{ display: activeTab() === 'quick-actions' ? 'block' : 'none' }}>

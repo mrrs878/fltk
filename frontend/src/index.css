@@ -956,10 +956,8 @@ main::-webkit-scrollbar-thumb:hover {
     transition: all 0.15s;
     -webkit-user-select: text !important;
     user-select: text !important;
-}
-
-.log-entry:hover {
-    background-color: rgba(255, 255, 255, 0.08);
+    display: flex;
+    width: max-content;
 }
 
 .timestamp {
@@ -997,12 +995,18 @@ main::-webkit-scrollbar-thumb:hover {
     font-weight: bold;
     user-select: text;
     -webkit-user-select: text;
+    width: 200px;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .message {
     flex: 1;
     user-select: text;
     -webkit-user-select: text;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .action-category {
