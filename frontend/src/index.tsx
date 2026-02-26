@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-25 19:57:10
+ * @LastEditTime: 2026-02-26 20:00:16
  */
 
 import { createStore } from "solid-js/store";
@@ -20,6 +20,8 @@ type LogEntry = {
     message: string;
     packageName?: string;
     pid?: string;
+    isJson?: boolean;          // 标记这是JSON日志
+    parsedJson?: any;          // 解析后的JSON对象
 };
 
 type Tab = "device-management" | "logcat" | "quick-actions" | "file-management" | "settings";
@@ -619,6 +621,78 @@ const LogcatView = () => {
         }
     };
     
+    // 合并多行JSON日志
+    const mergeJsonLogs = (logs: LogEntry[]): LogEntry[] => {
+        const result: LogEntry[] = [];
+        let jsonBuffer: LogEntry[] = [];
+        let inJson = false;
+        
+        for (const log of logs) {
+            const msg = log.message.trim();
+            
+            // 检测 JSON 开始：以 { 或 [ 开头
+            if (!inJson && (msg.startsWith('{') || msg.startsWith('['))) {
+                inJson = true;
+                jsonBuffer = [log];
+                
+                // 尝试立即解析（可能是单行JSON）
+                try {
+                    const parsed = JSON.parse(log.message);
+                    // 成功！是完整的单行JSON
+                    result.push({
+                        ...log,
+                        isJson: true,
+                        parsedJson: parsed
+                    });
+                    inJson = false;
+                    jsonBuffer = [];
+                } catch {
+                    // 需要更多行
+                }
+                continue;
+            }
+            
+            if (inJson) {
+                jsonBuffer.push(log);
+                
+                // 合并所有行的消息
+                const combined = jsonBuffer.map(l => l.message).join('\n');
+                
+                // 尝试解析
+                try {
+                    const parsed = JSON.parse(combined);
+                    // 成功！创建合并后的JSON日志
+                    result.push({
+                        ...jsonBuffer[0], // 保留第一行的时间戳等信息
+                        message: combined,
+                        isJson: true,
+                        parsedJson: parsed
+                    });
+                    inJson = false;
+                    jsonBuffer = [];
+                } catch {
+                    // 继续累积，防止无限累积
+                    if (jsonBuffer.length > 100) {
+                        // 超过100行放弃，按普通日志处理
+                        result.push(...jsonBuffer);
+                        inJson = false;
+                        jsonBuffer = [];
+                    }
+                }
+            } else {
+                // 普通日志
+                result.push(log);
+            }
+        }
+        
+        // 未完成的JSON按原样添加
+        if (jsonBuffer.length > 0) {
+            result.push(...jsonBuffer);
+        }
+        
+        return result;
+    };
+    
     const updateLogFilter = async (
         field: keyof typeof state.logFilter,
         value: any,
@@ -742,7 +816,8 @@ const LogcatView = () => {
                 if (allLines.length > 0) {
                     console.log('[Logcat] Initial lines:', allLines.length);
                     const parsedLogs = allLines.map(line => parseLogLine(line)).filter(log => log !== null);
-                    setState("logs", parsedLogs);
+                    const mergedLogs = mergeJsonLogs(parsedLogs);
+                    setState("logs", mergedLogs);
                     lastLogIndex = result.data.newIndex;
                     console.log('[Logcat] Set lastIndex to:', lastLogIndex);
                     
@@ -783,12 +858,12 @@ const LogcatView = () => {
                 if (newLines.length > 0) {
                     console.log('[Logcat] Processing new lines:', newLines.length);
                     const parsedLogs = newLines.map(line => parseLogLine(line)).filter(log => log !== null);
-                    console.log('[Logcat] Parsed logs:', parsedLogs.length, 'Sample PIDs:', parsedLogs.slice(0, 3).map(l => l.pid));
+                    const mergedLogs = mergeJsonLogs(parsedLogs);
+                    console.log('[Logcat] Parsed logs:', mergedLogs.length, 'Sample PIDs:', mergedLogs.slice(0, 3).map(l => l.pid));
                     
-                    // 追加新日志而不是替换
                     setState("logs", (logs) => {
                         console.log('[Logcat] Before append - existing logs:', logs.length);
-                        const combined = [...logs, ...parsedLogs];
+                        const combined = [...logs, ...mergedLogs];
                         console.log('[Logcat] After append - total logs:', combined.length);
                         const maxLogs = 5000; // 增加到5000条，避免频繁丢失日志
                         // 限制总数
@@ -803,7 +878,6 @@ const LogcatView = () => {
                     // 更新索引位置
                     lastLogIndex = result.data.newIndex;
                     
-                    // 自动滚动到底部
                     setTimeout(() => scrollToBottom(), 0);
                 } else {
                     console.log('[Logcat] No new lines, keeping lastIndex:', lastLogIndex);
@@ -831,7 +905,6 @@ const LogcatView = () => {
         const match = line.match(timeRegex);
         
         if (!match) {
-            // 打印未匹配的行，帮助调试
             if (line.trim().length > 0 && !line.startsWith('-')) {
                 console.log('[Logcat] Failed to parse line:', line.substring(0, 100));
             }
@@ -845,7 +918,7 @@ const LogcatView = () => {
         
         return {
             timestamp: timestamp, // 保持设备原始时间戳，格式: MM-DD HH:mm:ss.SSS
-            level: levelMap[levelChar] || 'Info',
+            level: levelMap[levelChar] || levelMap['I'],
             tag: tag.trim(),
             packageName: tag.trim(), // 添加包名字段，与tag相同
             message: message, // 保留原始消息，包括前导空格
@@ -908,14 +981,7 @@ const LogcatView = () => {
             
             return true;
         });
-        
-        // 显示更详细的调试信息
-        const samplePids = state.logs.slice(0, 10).map(log => log.pid);
-        console.log('[Logcat] Total logs:', state.logs.length, 'Filtered:', filtered.length);
-        console.log('[Logcat] Filter PIDs:', filterPids(), '(count:', filterPids().length + ')');
-        console.log('[Logcat] Package filter:', state.logFilter.packageName);
-        console.log('[Logcat] Sample log PIDs:', samplePids);
-        
+
         return filtered;
     };
 
@@ -933,6 +999,35 @@ const LogcatView = () => {
             AdbApi.stopLogcat();
         }
     });
+
+    const JsonLogEntry = (props: { log: LogEntry }) => {
+        const [isCollapsed, setIsCollapsed] = createSignal(true);
+        
+        const formatJson = () => {
+            try {
+                return JSON.stringify(props.log.parsedJson, null, 2);
+            } catch {
+                return props.log.message;
+            }
+        };
+        
+        return (
+            <div class={`log-entry log-json log-${props.log.level.toLowerCase()}`}>
+                <span class="timestamp">{props.log.timestamp}</span>
+                <span class="level">{props.log.level[0]}</span>
+                <span class="package">{props.log.packageName || props.log.tag}</span>
+                <button 
+                    class="json-toggle"
+                    onClick={() => setIsCollapsed(!isCollapsed())}
+                >
+                    {isCollapsed() ? '▶' : '▼'} JSON
+                </button>
+                <Show when={!isCollapsed()}>
+                    <pre class="json-content">{formatJson()}</pre>
+                </Show>
+            </div>
+        );
+    };
 
     return (
         <div class="logcat-view">
@@ -1029,14 +1124,18 @@ const LogcatView = () => {
                 </Show>
                 <For each={filteredLogs()}>
                     {(log) => (
-                        <div class={`log-entry log-${log.level.toLowerCase()}`}>
-                            <span class="timestamp">
-                                {log.timestamp}
-                            </span>
-                            <span class="level">{log.level[0]}</span>
-                            <span class="package">{log.packageName || log.tag}</span>
-                            <span class="message">{log.message}</span>
-                        </div>
+                        <Show when={log.isJson} fallback={
+                            <div class={`log-entry log-${log.level.toLowerCase()}`}>
+                                <span class="timestamp">
+                                    {log.timestamp}
+                                </span>
+                                <span class="level">{log.level[0]}</span>
+                                <span class="package">{log.packageName || log.tag}</span>
+                                <span class="message">{log.message}</span>
+                            </div>
+                        }>
+                            <JsonLogEntry log={log} />
+                        </Show>
                     )}
                 </For>
             </div>

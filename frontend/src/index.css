@@ -978,13 +978,25 @@ main::-webkit-scrollbar-thumb:hover {
 .log-debug .level {
     color: #9cdcfe;
 }
+.log-debug .message {
+    color: #9cdcfe;
+}
 .log-info .level {
+    color: #569cd6;
+}
+.log-info .message {
     color: #569cd6;
 }
 .log-warn .level {
     color: #ffcc02;
 }
+.log-warn .message {
+    color: #ffcc02;
+}
 .log-error .level {
+    color: #f44747;
+}
+.log-error .message {
     color: #f44747;
 }
 
@@ -1007,6 +1019,59 @@ main::-webkit-scrollbar-thumb:hover {
     -webkit-user-select: text;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.log-json {
+    align-items: flex-start;
+    background-color: rgba(100, 100, 255, 0.05);
+}
+
+.json-toggle {
+    background: #007aff;
+    color: white;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s ease;
+    font-weight: 500;
+}
+
+.json-toggle:hover {
+    background: #0051d5;
+}
+
+.json-content {
+    margin: 0;
+    padding: 12px;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 4px;
+    font-family: "SF Mono", "Menlo", "Monaco", "Consolas", monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    overflow-x: auto;
+    border: 1px solid #404040;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.json-content::-webkit-scrollbar {
+    height: 8px;
+}
+
+.json-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.json-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.json-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .action-category {
