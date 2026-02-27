@@ -960,6 +960,11 @@ main::-webkit-scrollbar-thumb:hover {
     width: max-content;
 }
 
+.log-base-info {
+    display: flex;
+    width: max-content;
+}
+
 .timestamp {
     color: #808080;
     margin-right: 10px;

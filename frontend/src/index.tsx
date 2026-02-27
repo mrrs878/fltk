@@ -2,7 +2,7 @@
  * @Author: mrrs878@foxmail.com
  * @Date: 2026-01-28 19:45:52
  * @LastEditors: mrrs878@foxmail.com
- * @LastEditTime: 2026-02-26 20:00:16
+ * @LastEditTime: 2026-02-27 19:27:35
  */
 
 import { createStore } from "solid-js/store";
@@ -14,13 +14,13 @@ import { ConfigManager } from "./config";
 type LogLevel = "Verbose" | "Debug" | "Info" | "Warn" | "Error";
 
 type LogEntry = {
+    p: string;
     timestamp: string;
     level: LogLevel;
     tag: string;
     message: string;
     packageName?: string;
     pid?: string;
-    isJson?: boolean;          // 标记这是JSON日志
     parsedJson?: any;          // 解析后的JSON对象
 };
 
@@ -624,73 +624,32 @@ const LogcatView = () => {
     // 合并多行JSON日志
     const mergeJsonLogs = (logs: LogEntry[]): LogEntry[] => {
         const result: LogEntry[] = [];
-        let jsonBuffer: LogEntry[] = [];
-        let inJson = false;
-        
-        for (const log of logs) {
-            const msg = log.message.trim();
-            
-            // 检测 JSON 开始：以 { 或 [ 开头
-            if (!inJson && (msg.startsWith('{') || msg.startsWith('['))) {
-                inJson = true;
-                jsonBuffer = [log];
-                
-                // 尝试立即解析（可能是单行JSON）
-                try {
-                    const parsed = JSON.parse(log.message);
-                    // 成功！是完整的单行JSON
-                    result.push({
-                        ...log,
-                        isJson: true,
-                        parsedJson: parsed
-                    });
-                    inJson = false;
-                    jsonBuffer = [];
-                } catch {
-                    // 需要更多行
-                }
-                continue;
-            }
-            
-            if (inJson) {
+        const jsonBuffer: LogEntry[] = [logs[0]];
+
+        for (const log of logs.slice(1)) {
+            if (log.p === jsonBuffer[0].p) {
                 jsonBuffer.push(log);
-                
-                // 合并所有行的消息
-                const combined = jsonBuffer.map(l => l.message).join('\n');
-                
-                // 尝试解析
-                try {
-                    const parsed = JSON.parse(combined);
-                    // 成功！创建合并后的JSON日志
-                    result.push({
-                        ...jsonBuffer[0], // 保留第一行的时间戳等信息
-                        message: combined,
-                        isJson: true,
-                        parsedJson: parsed
-                    });
-                    inJson = false;
-                    jsonBuffer = [];
-                } catch {
-                    // 继续累积，防止无限累积
-                    if (jsonBuffer.length > 100) {
-                        // 超过100行放弃，按普通日志处理
-                        result.push(...jsonBuffer);
-                        inJson = false;
-                        jsonBuffer = [];
-                    }
-                }
             } else {
-                // 普通日志
-                result.push(log);
+                let parsedJson;
+                const _message = jsonBuffer.slice(1).map(log => log.message).join('');
+                try {
+                    parsedJson = JSON.parse(_message);
+                } catch (e) {
+                    // ignore
+                }
+                result.push(
+                    ...(parsedJson ? [{
+                        ...jsonBuffer[0],
+                        message: jsonBuffer[0].message,
+                        parsedJson,
+                    }] : jsonBuffer)
+                );
+                jsonBuffer.length = 0;
+                jsonBuffer.push(log);
             }
         }
-        
-        // 未完成的JSON按原样添加
-        if (jsonBuffer.length > 0) {
-            result.push(...jsonBuffer);
-        }
-        
-        return result;
+
+        return [...result, ...jsonBuffer];
     };
     
     const updateLogFilter = async (
@@ -900,7 +859,7 @@ const LogcatView = () => {
         }
     };
 
-    const parseLogLine = (line: string): any | null => {
+    const parseLogLine = (line: string): LogEntry | null => {
         const timeRegex = /^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3})\s+([VDIWEF])\/(.+?)\(\s*(\d+)\): ?(.*)$/;
         const match = line.match(timeRegex);
         
@@ -917,6 +876,7 @@ const LogcatView = () => {
         };
         
         return {
+            p: `${timestamp}_${levelChar}_${tag.trim()}_${pid}`,
             timestamp: timestamp, // 保持设备原始时间戳，格式: MM-DD HH:mm:ss.SSS
             level: levelMap[levelChar] || levelMap['I'],
             tag: tag.trim(),
@@ -1005,7 +965,7 @@ const LogcatView = () => {
         
         const formatJson = () => {
             try {
-                return JSON.stringify(props.log.parsedJson, null, 2);
+                return JSON.stringify(props.log.parsedJson, null, 4);
             } catch {
                 return props.log.message;
             }
@@ -1020,7 +980,7 @@ const LogcatView = () => {
                     class="json-toggle"
                     onClick={() => setIsCollapsed(!isCollapsed())}
                 >
-                    {isCollapsed() ? '▶' : '▼'} JSON
+                    {(isCollapsed() ? '▶ ' : '▼ ') + props.log.message}
                 </button>
                 <Show when={!isCollapsed()}>
                     <pre class="json-content">{formatJson()}</pre>
@@ -1123,14 +1083,16 @@ const LogcatView = () => {
                     </div>
                 </Show>
                 <For each={filteredLogs()}>
-                    {(log) => (
-                        <Show when={log.isJson} fallback={
+                    {(log, i) => (
+                        <Show when={log.parsedJson} fallback={
                             <div class={`log-entry log-${log.level.toLowerCase()}`}>
-                                <span class="timestamp">
-                                    {log.timestamp}
-                                </span>
-                                <span class="level">{log.level[0]}</span>
-                                <span class="package">{log.packageName || log.tag}</span>
+                                <div class="log-base-info" style={{ opacity: filteredLogs()[i() - 1]?.timestamp === log.timestamp ? 0 : 1 }}>
+                                    <span class="timestamp">
+                                        {log.timestamp}
+                                    </span>
+                                    <span class="level">{log.level[0]}</span>
+                                    <span class="package">{log.packageName || log.tag}</span>
+                                </div>
                                 <span class="message">{log.message}</span>
                             </div>
                         }>
