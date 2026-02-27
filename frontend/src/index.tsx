@@ -6,7 +6,7 @@
  */
 
 import { createStore } from "solid-js/store";
-import { createSignal, onMount, onCleanup, For, Show, createEffect } from "solid-js";
+import { createSignal, onMount, onCleanup, For, Show, createEffect, createMemo } from "solid-js";
 import { render } from "solid-js/web";
 import { AdbApi, type Device } from "./api";
 import { ConfigManager } from "./config";
@@ -623,6 +623,7 @@ const LogcatView = () => {
     
     // 合并多行JSON日志
     const mergeJsonLogs = (logs: LogEntry[]): LogEntry[] => {
+        if (logs.length === 0) return [];
         const result: LogEntry[] = [];
         const jsonBuffer: LogEntry[] = [logs[0]];
 
@@ -767,21 +768,18 @@ const LogcatView = () => {
     const pollLogsInitial = async () => {
         try {
             const result = await AdbApi.getLogcatLines(0);
-            console.log('[Logcat] Initial poll:', result);
             
             if (result.success && result.data) {
                 const allLines = result.data.lines;
                 
                 if (allLines.length > 0) {
-                    console.log('[Logcat] Initial lines:', allLines.length);
                     const parsedLogs = allLines.map(line => parseLogLine(line)).filter(log => log !== null);
                     const mergedLogs = mergeJsonLogs(parsedLogs);
                     setState("logs", mergedLogs);
                     lastLogIndex = result.data.newIndex;
-                    console.log('[Logcat] Set lastIndex to:', lastLogIndex);
                     
                     // 初次加载后滚动到底部
-                    setTimeout(() => scrollToBottom(), 100);
+                    requestAnimationFrame(() => scrollToBottom());
                 }
             }
         } catch (error) {
@@ -802,34 +800,20 @@ const LogcatView = () => {
             // 使用增量模式获取日志
             const result = await AdbApi.getLogcatLines(lastLogIndex);
             
-            console.log('[Logcat] Poll result:', {
-                success: result.success,
-                lastIndex: lastLogIndex,
-                newLinesCount: result.data?.lines?.length,
-                newIndex: result.data?.newIndex,
-                isRunning: result.data?.isRunning
-            });
-            
             if (result.success && result.data) {
                 const newLines = result.data.lines;
                 
                 // 只有新日志时才更新
                 if (newLines.length > 0) {
-                    console.log('[Logcat] Processing new lines:', newLines.length);
                     const parsedLogs = newLines.map(line => parseLogLine(line)).filter(log => log !== null);
                     const mergedLogs = mergeJsonLogs(parsedLogs);
-                    console.log('[Logcat] Parsed logs:', mergedLogs.length, 'Sample PIDs:', mergedLogs.slice(0, 3).map(l => l.pid));
                     
                     setState("logs", (logs) => {
-                        console.log('[Logcat] Before append - existing logs:', logs.length);
                         const combined = [...logs, ...mergedLogs];
-                        console.log('[Logcat] After append - total logs:', combined.length);
                         const maxLogs = 5000; // 增加到5000条，避免频繁丢失日志
                         // 限制总数
                         if (combined.length > maxLogs) {
-                            const trimmed = combined.slice(combined.length - maxLogs);
-                            console.log('[Logcat] Trimmed to:', trimmed.length);
-                            return trimmed;
+                            return combined.slice(combined.length - maxLogs);
                         }
                         return combined;
                     });
@@ -837,13 +821,10 @@ const LogcatView = () => {
                     // 更新索引位置
                     lastLogIndex = result.data.newIndex;
                     
-                    setTimeout(() => scrollToBottom(), 0);
-                } else {
-                    console.log('[Logcat] No new lines, keeping lastIndex:', lastLogIndex);
+                    requestAnimationFrame(() => scrollToBottom());
                 }
                 
                 if (!result.data.isRunning && state.isLogging) {
-                    console.log('[Logcat] Logcat stopped running');
                     setState("isLogging", false);
                 }
             } else {
@@ -906,44 +887,33 @@ const LogcatView = () => {
         showSuccess("日志已导出");
     };
 
-    const filteredLogs = () => {
-        const filtered = state.logs.filter(log => {
-            // 如果设置了包名过滤
-            if (state.logFilter.packageName) {
-                // 如果有PID，使用精确匹配
-                if (filterPids().length > 0) {
-                    const logPid = log.pid || '';
-                    const matches = filterPids().includes(logPid);
-                    if (!matches) {
-                        return false;
-                    }
+    const filteredLogs = createMemo(() => {
+        const pids = filterPids();
+        const { packageName, keywords, logLevel } = state.logFilter;
+        const kwLower = keywords ? keywords.toLowerCase() : '';
+        const levelPriority: Record<LogLevel, number> = {
+            'Verbose': 0, 'Debug': 1, 'Info': 2, 'Warn': 3, 'Error': 4
+        };
+        const minLevel = levelPriority[logLevel];
+
+        return state.logs.filter(log => {
+            if (packageName) {
+                if (pids.length > 0) {
+                    if (!pids.includes(log.pid || '')) return false;
                 } else {
-                    // 没有PID说明应用未运行，不显示任何日志
                     return false;
                 }
             }
-            
-            if (state.logFilter.keywords) {
-                const keywords = state.logFilter.keywords.toLowerCase();
-                const searchText = `${log.tag} ${log.message}`.toLowerCase();
-                if (!searchText.includes(keywords)) {
-                    return false;
-                }
+
+            if (kwLower) {
+                if (!(`${log.tag} ${log.message}`).toLowerCase().includes(kwLower)) return false;
             }
-            
-            const levelPriority: Record<LogLevel, number> = {
-                'Verbose': 0, 'Debug': 1, 'Info': 2, 'Warn': 3, 'Error': 4
-            };
-            
-            if (levelPriority[log.level] < levelPriority[state.logFilter.logLevel]) {
-                return false;
-            }
-            
+
+            if (levelPriority[log.level] < minLevel) return false;
+
             return true;
         });
-
-        return filtered;
-    };
+    });
 
     onMount(() => {
         isActive = true;
